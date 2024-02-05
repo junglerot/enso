@@ -1,9 +1,0 @@
-from Standard.Base import all
-
-type Foo
-    Value a
-
-type Bar
-    Value a
-
-Vector.from (that:Foo) = [that.a]

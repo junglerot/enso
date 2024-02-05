@@ -1,3 +1,0 @@
-from project.Semantic.Deep_Export.Internal_1 import const
-
-my_fun = const

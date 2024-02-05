@@ -1,3 +1,0 @@
-import local.Test_Rename.Atom as Def
-
-main = Def.X.method

@@ -1,3 +1,0 @@
-type Maybe a
-    Nothing
-    Some unwrap:a

@@ -1,1 +1,0 @@
-bar a = "ABC"+a.to_text

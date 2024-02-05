@@ -1,4 +1,0 @@
-import project.Sub.Imp
-from Standard.Base import all
-
-main = IO.println "Hello, World!"

@@ -1,3 +1,0 @@
-main =
-    Standard.Base.IO.println "Hello world!"
-    0

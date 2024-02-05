@@ -1,3 +1,0 @@
-import local.Test_Qualified_Error.Atom
-
-main = (Mk_X 1).method

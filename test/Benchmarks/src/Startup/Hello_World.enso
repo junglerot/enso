@@ -1,3 +1,0 @@
-from Standard.Base import IO
-
-main = IO.println "Hello World"

@@ -1,8 +1,0 @@
-from Standard.Base import all
-
-from Standard.Test import Test_Suite
-
-import project.Geo_Spec
-
-main = Test_Suite.run_main <|
-    Geo_Spec.spec

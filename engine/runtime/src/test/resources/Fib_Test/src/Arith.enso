@@ -1,4 +1,0 @@
-
-plus a b = @Builtin_Method "Integer.+"
-
-mul a b = @Builtin_Method "Integer.*"

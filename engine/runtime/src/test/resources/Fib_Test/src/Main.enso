@@ -1,4 +1,0 @@
-
-import project.Arith
-
-main = Arith.mul 6 7

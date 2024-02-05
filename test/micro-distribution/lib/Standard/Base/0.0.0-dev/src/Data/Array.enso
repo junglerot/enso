@@ -1,6 +1,0 @@
-import project.Data.Vector.Vector
-
-@Builtin_Type
-type Array
-    at self index = Vector.at self index
-    length self = Vector.length self

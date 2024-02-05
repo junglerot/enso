@@ -1,3 +1,0 @@
-import Standard.Base.Nothing
-
-Nothing.util = x -> x.method

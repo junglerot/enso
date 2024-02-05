@@ -1,6 +1,0 @@
-from Standard.Base import IO
-from project.Atom import all
-
-main =
-    IO.println Long.MAX_VALUE
-    foo

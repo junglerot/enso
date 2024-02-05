@@ -1,7 +1,0 @@
-type X
-    Mk_X a
-
-type Y
-    Mk_Y b
-
-X.method self = 20

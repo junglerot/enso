@@ -1,7 +1,0 @@
-from Standard.Base import all
-
-## Generates a random name with a given prefix, ensuring relative uniqueness by
-   appending a random UUID.
-random_name : Text -> Text
-random_name prefix =
-    prefix + "-" + Random.uuid

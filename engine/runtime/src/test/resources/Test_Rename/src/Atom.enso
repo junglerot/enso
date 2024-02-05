@@ -1,3 +1,0 @@
-type X
-
-X.method self = 20
