@@ -1,0 +1,1430 @@
+import project.Any.Any
+import project.Data.Array.Array
+import project.Data.Filter_Condition.Filter_Condition
+import project.Data.List.List
+import project.Data.Map.Map
+import project.Data.Numbers.Integer
+import project.Data.Pair.Pair
+import project.Data.Range.Range
+import project.Data.Sort_Direction.Sort_Direction
+import project.Data.Text.Text
+import project.Error.Error
+import project.Errors.Common.Incomparable_Values
+import project.Errors.Common.Index_Out_Of_Bounds
+import project.Errors.Common.No_Such_Method
+import project.Errors.Common.Not_Found
+import project.Errors.Common.Type_Error
+import project.Errors.Illegal_Argument.Illegal_Argument
+import project.Errors.Problem_Behavior.Problem_Behavior
+import project.Errors.Wrapped_Error.Wrapped_Error
+import project.Function.Function
+import project.Internal.Array_Like_Helpers
+import project.Math
+import project.Meta
+import project.Nothing.Nothing
+import project.Panic.Panic
+import project.Random.Random
+from project.Data.Boolean import Boolean, False, True
+from project.Data.Filter_Condition import unify_condition_or_predicate, unify_condition_predicate_or_element
+from project.Data.Index_Sub_Range import drop_helper, Index_Sub_Range, take_helper
+from project.Data.Ordering import all
+from project.Data.Range.Extensions import all
+
+polyglot java import java.lang.IndexOutOfBoundsException
+
+##  The basic, immutable, vector type.
+    A vector allows to store an arbitrary number of elements, in linear memory.
+    It is the recommended data structure for most applications.
+
+    > Example
+      A vector containing the elements `1`, `2`, and `3`, in this order is:
+          [1, 2, 3]
+
+    > Example
+      A vector containing 50 elements, each being the number `42`, can be
+      created by:
+          Vector.fill length=50 item=42
+
+@Builtin_Type
+type Vector a
+    ## PRIVATE
+       ADVANCED
+       Creates a new vector of the given length, initializing elements using
+       the provided constructor function.
+
+       Arguments:
+       - length: The length of the vector (>= 0).
+       - constructor: A function taking the index in the vector and returning an
+         item for that index in the vector.
+
+       A vector allows to store an arbitrary number of elements in linear memory. It
+       is the recommended data structure for most applications.
+
+       > Example
+         Create a vector containing the numbers 1 through 50.
+             Vector.new 50 (ix -> ix + 1)
+
+       > Example
+         Create a copy of the given vector (`my_vec`).
+
+             Vector.new my_vec.length (ix -> my_vec.at ix)
+    new : Integer -> (Integer -> Any) -> Vector Any
+    new length constructor = Array_Like_Helpers.vector_from_function length constructor
+
+    ## PRIVATE
+       ADVANCED
+       Collects elements of a sequence into a new vector. Various structures can be
+       converted into vector of elements. This helper methods allows to do so in an
+       iterative fashion. Enough to describe how to extract value from current item
+       and how to advance to next item.
+
+       Arguments:
+       - seq: the sequence to process.
+       - element: A function taking the `seq` and follow ups and extracting the value to put into the vector
+       - next: A function to advance to next _item_ of the sequence
+       - limit: maximal number of elements to collect. Defaults to infinity.
+       - stop_at: optional function like `(_==List.Nil)` to check for _end of sequence condition_.
+          By default checks for `Nothing` being the terminal element of a collection.
+
+       > Example
+         Turn a list into a vector.
+             Vector.collect (List.Cons 1 <| List.Cons 2 <| List.Nil) .x .xs stop_at=(_==List.Nil)
+    collect : Any -> (Any -> Any) -> (Any -> Any) -> Integer | Nothing -> (Any -> Boolean) -> Vector Any
+    collect seq element:(Any -> Any) next:(Any -> Any) limit:(Integer | Nothing)=Nothing stop_at:(Any -> Boolean)=(_==Nothing) =
+        b = Vector.new_builder (if limit.is_nothing then 10 else limit)
+        iterate item remaining = if remaining == 0 || (stop_at item) then b.to_vector else
+            b.append <| element item
+            @Tail_Call iterate (next item) (if remaining.is_nothing then Nothing else remaining-1)
+        iterate seq limit
+
+    ## PRIVATE
+       ADVANCED
+
+       Converts an array into a vector by copying content of the array.
+
+       Arguments:
+       - array: The array with content to copy into the new vector.
+
+       A vector allows to store an arbitrary number of elements in linear memory. It
+       is the recommended data structure for most applications.
+    from_array : Array -> Vector
+    from_array array = @Builtin_Method "Vector.from_array"
+
+    ## PRIVATE
+       A helper method that takes a vector or an array or a single element and
+       returns a vector.
+
+       If it got a vector or array, a vector containing the same elements is
+       returned.
+       If it got a single element, a vector containing this element is returned.
+    unify_vector_or_element value = case value of
+        vec : Vector -> vec
+        arr : Array -> Vector.from_polyglot_array arr
+        single_element -> [single_element]
+
+    ## ALIAS repeat
+       GROUP Constants
+       Creates a new vector of the given length, filling the elements with
+       the provided constant.
+
+       Arguments:
+       - length: The length of the vector (>= 0).
+       - item: A value to be placed into each element of the vector.
+
+       A vector allows to store an arbitrary number of elements in linear memory. It
+       is the recommended data structure for most applications.
+
+       > Example
+         Create a vector containing 50 elements, each being the number `42`.
+
+             Vector.fill length=50 item=42
+    fill : Integer -> Any -> Vector Any
+    fill length item =
+        Vector.new length _->item
+
+    ## PRIVATE
+       ADVANCED
+       Creates a new vector builder instance.
+
+       A vector builder is a mutable data structure, that allows for gathering
+       a number of elements and then converting them into a vector. This is
+       particularly useful when the number of elements is not known upfront.
+
+       A vector allows to store an arbitrary number of elements in linear memory. It
+       is the recommended data structure for most applications.
+
+       Arguments:
+       - capacity: Initial capacity of the Vector.Builder
+
+       > Example
+         Construct a vector using a builder that contains the items 1 to 5.
+
+             example_new_builder =
+                  builder = Vector.new_builder 5
+                  do_build start stop =
+                      builder.append start
+                      if start >= stop then Nothing else
+                          @Tail_Call do_build start+1 stop
+                  do_build 1 5
+                  builder.to_vector
+    new_builder : Integer -> Builder
+    new_builder (capacity=10) = Builder.new capacity
+
+    ## PRIVATE
+       ADVANCED
+
+       Converts a polyglot value representing an array into a vector.
+
+       Arguments:
+       - arr: The polyglot array value to wrap into a vector.
+
+       This is useful when wrapping polyglot APIs for further use in Enso.
+
+       A vector allows to store an arbitrary number of elements in linear memory. It
+       is the recommended data structure for most applications.
+    from_polyglot_array : Any -> Vector Any
+    from_polyglot_array array = @Builtin_Method "Vector.from_polyglot_array"
+
+    ## PRIVATE
+       ADVANCED
+       Copies content of a vector into an Array.
+    to_array self = Array_Like_Helpers.vector_to_array self
+
+    ## GROUP Metadata
+       Returns the number of elements stored in this vector.
+
+       > Example
+         Checking the length of a vector.
+
+             [1, 2, 3, 4].length
+    length : Integer
+    length self = Array_Like_Helpers.length self
+
+    ## GROUP Selections
+       ICON select_row
+       Gets an element from the vector at a specified index (0-based).
+
+       Arguments:
+       - index: The location in the vector to get the element from. The index is
+         also allowed be negative, then the elements are indexed from the back
+         of the vector, i.e. -1 will correspond to the last element.
+
+       > Example
+         Get the second element of a vector.
+
+             [1, 2, 3].at 1 == 2
+
+       > Example
+         Get the last element of a vector.
+
+             [1, 2, 3].at -1 == 3
+    at : Integer -> Any ! Index_Out_Of_Bounds
+    at self index = Array_Like_Helpers.at self index
+
+    ## ICON select_row
+       Gets an element from the vector at a specified index (0-based).
+       If the index is invalid then `if_missing` is returned.
+
+       Arguments:
+       - index: The location in the vector to get the element from. The index is
+         also allowed be negative, then the elements are indexed from the back
+         of the vector, i.e. -1 will correspond to the last element.
+       - if_missing: The value to return if the index is out of bounds.
+    get : Integer -> Any -> Any
+    get self index ~if_missing=Nothing =
+        len = self.length
+        if index < -len || index >= len then if_missing else
+            self.at index
+
+    ## ICON dataframe_map_column
+       Combines all the elements of the vector, by iteratively applying the
+       passed function with next elements of the vector.
+
+       Arguments:
+       - init: The initial value for the fold.
+       - function: A function taking two elements and combining them.
+
+       In general, the result of
+           [l0, l1, ..., ln] . fold init f
+       is the same as
+           f (...(f (f init l0) l1)...) ln
+
+       > Example
+         Compute the sum of all of the elements in a vector.
+
+             [0, 1, 2] . fold 0 (+)
+    fold : Any -> (Any -> Any -> Any) -> Any
+    fold self init function =
+        f = acc -> ix -> function acc (self.at ix)
+        0.up_to self.length . fold init f
+
+    ## ICON dataframe_map_column
+       Combines all the elements of the vector, by iteratively applying the
+       passed function with next elements of the vector.
+
+       Arguments:
+       - init: The initial value for the fold.
+       - function: A function taking the current value, an index and an item
+         and combining them.
+
+       > Example
+         Compute the sum of all of the elements and indexes in a vector.
+
+             [0, 1, 2] . fold_with_index 0 (s->i->e->s+i+e)
+    fold_with_index : Any -> (Any -> Integer -> Any -> Any) -> Any
+    fold_with_index self init function =
+        f = acc -> ix -> function acc ix (self.at ix)
+        0.up_to self.length . fold init f
+
+    ## Combines all the elements of the vector, by iteratively applying the
+       passed function with the next element of the vector. After each step the
+       value is stored resulting in a new vector of the same size as self.
+
+       Arguments:
+       - init: The initial value for the fold.
+       - function: A function taking two elements and combining them.
+
+       > Example
+         Compute the running sum of all of the elements in a vector
+
+            [1, 2, 3].running_fold 0 (+)
+    running_fold : Any -> (Any -> Any -> Any) -> Vector Any
+    running_fold self init function =
+        wrapped builder value =
+            current = if builder.length == 0 then init else builder.last
+            builder.append (function current value)
+        built = self.fold (Vector.new_builder self.length) wrapped
+        built.to_vector
+
+    ## ICON dataframe_map_column
+       Combines all the elements of a non-empty vector using a binary operation.
+       If the vector is empty, it returns `if_empty`.
+
+       Arguments:
+       - function: A binary operation that takes two items and combines them.
+       - if_empty: Value returned if the vector is empty.
+
+       > Example
+         Compute the sum of all the elements in a vector.
+
+             [0, 1, 2] . reduce (+)
+    reduce : (Any -> Any -> Any) -> Any -> Any
+    reduce self function ~if_empty=(Error.throw Empty_Error) =
+        len = self.length
+        case len of
+            0 -> if_empty
+            1 -> self.at 0
+            _ ->
+                fold_function current idx =
+                    if idx == len then current else
+                        @Tail_Call fold_function (function current (self.at idx)) (idx + 1)
+                fold_function (self.at 0) 1
+
+    ## GROUP Selections
+       Returns the first element of the vector that satisfies the condition or
+       `if_missing` if no elements of the vector satisfy it.
+
+       Arguments:
+       - condition: A `Filter_Condition` or a function that takes an element and
+         returns a boolean value specifying if it satisfies the condition.
+       - start: The index to start searching from. If the index is negative, it
+         is counted from the end of the vector.
+       - if_missing: Value returned if no element satisfies the predicate.
+
+       > Example
+         Finding a first element of the vector that is larger than 3.
+
+             [1, 2, 3, 4, 5].find (> 3)
+    find : (Filter_Condition | (Any -> Boolean)) -> Integer -> Any -> Any
+    find self condition start=0 ~if_missing=(Error.throw Not_Found) =
+        predicate = unify_condition_or_predicate condition
+        self_len = self.length
+        check_start_valid start self_len used_start->
+            found = used_start.up_to self_len . find (idx -> (predicate (self.at idx)))
+            if found.is_nothing then if_missing else self.at found
+
+    ## GROUP Values
+       Returns the index of an element in the vector.
+       Returns Nothing if the element is not found.
+
+       Arguments:
+       - condition: Either the element to search for, a `Filter_Condition` or a
+         predicate function to test each element.
+       - start: The index to start searching from. If the index is negative, it
+         is counted from the end of the vector.
+
+       > Example
+         Find the index of an element in a vector.
+
+             [1, 2, 3].index_of 2 == 1
+
+       > Example
+         Find the index of the first palindrome.
+
+             ["ab", "abab", "aba", "bbb"].index_of (s-> s == s.reverse) == 2
+    index_of : (Any | Filter_Condition | (Any -> Boolean)) -> Integer -> Integer | Nothing
+    index_of self condition start=0 =
+        self_len = self.length
+        check_start_valid start self_len used_start->
+            predicate = unify_condition_predicate_or_element condition
+            used_start.up_to self.length . find if_missing=Nothing (i-> predicate (self.at i))
+
+    ## GROUP Values
+       Returns the last index of an element in the vector.
+       Returns `Nothing` if the element is not found.
+
+       Arguments:
+       - condition: Either the element to search for, a `Filter_Condition` or a
+         predicate function to test each element.
+       - start: The index to start searching backwards from. If the index is
+         negative, it is counted from the end of the vector.
+
+       > Example
+         Find the last index of an element in a vector.
+
+             [1, 2, 3, 1, 2, 3].last_index_of 2 == 4
+
+       > Example
+         Find the index of the last palindrome.
+
+             ["ab", "abab", "aba", "bbb"].last_index_of (s-> s == s.reverse) == 3
+    last_index_of : (Any | Filter_Condition | (Any -> Boolean)) -> Integer -> Integer | Nothing
+    last_index_of self condition start=-1 =
+        self_len = self.length
+        if self_len == 0 && (start==0 || start==-1) then Nothing else
+            check_start_valid start self_len used_start->
+                predicate = unify_condition_predicate_or_element condition
+                used_start.down_to -1 . find if_missing=Nothing (i-> predicate (self.at i))
+
+    ## GROUP Logical
+       Checks whether a predicate holds for at least one element of self vector.
+
+       Arguments:
+       - condition: A `Filter_Condition` or a predicate function to test each
+         element.
+
+       > Example
+         Checking if any element of the vector is larger than 3.
+
+             [1, 2, 3, 4, 5].any (Filter_Condition.Greater than=3)
+
+       > Example
+         Checking if any element of the vector is even.
+
+             [1, 2, 3, 4, 5].any (x-> x%2 == 0)
+    any : (Filter_Condition | (Any -> Boolean)) -> Boolean
+    any self condition =
+        predicate = unify_condition_or_predicate condition
+        0.up_to self.length . any (idx -> (predicate (self.at idx)))
+
+    ## GROUP Logical
+       Checks whether a condition holds for all elements in this vector.
+
+       Arguments:
+       - condition: A `Filter_Condition` or a predicate function to test each
+         element.
+
+       > Example
+         Check if all elements in the vector are less than zero.
+
+             [-1, 1, 5, 8].all (Filter_Condition.Less than=0)
+
+       > Example
+         Check if all elements in the vector are even.
+
+             [-1, 1, 5, 8].all (x-> x%2 == 0)
+    all : (Filter_Condition | (Any -> Boolean)) -> Boolean
+    all self condition =
+        predicate = unify_condition_or_predicate condition
+        self.any (predicate >> .not) . not
+
+    ## GROUP Logical
+       Checks whether this vector contains a given value as an element.
+
+       Arguments:
+       - elem: The item to see if it exists in the vector.
+
+       > Example
+         Checking if the vector contains the number 72.
+
+             [1, 383, 72, 301].contains 72
+    contains : Any -> Boolean
+    contains self elem = self.any (== elem)
+
+    ## GROUP Logical
+       Checks if this vector is empty.
+
+       > Example
+         Checking for emptiness.
+
+             [].is_empty
+    is_empty : Boolean
+    is_empty self = self.length == 0
+
+    ## GROUP Logical
+       Checks if this vector is not empty.
+
+       > Example
+         Checking for non-emptiness.
+
+             [1].not_empty
+    not_empty : Boolean
+    not_empty self = self.is_empty.not
+
+    ## GROUP Selections
+       ICON preparation
+       Selects all elements of this vector which satisfy a condition.
+
+       Arguments:
+       - filter: The filter to apply to the vector. It can either be an instance
+         of `Filter_Condition` or a predicate taking a value and returning a
+         boolean value indicating whether the corresponding element should be
+         kept or not.
+
+       > Example
+         Selecting all elements that are greater than 3.
+
+             [1, 2, 3, 4, 5].filter (> 3)
+             [1, 2, 3, 4, 5].filter (Filter_Condition.Greater than=3)
+    filter : (Filter_Condition | (Any -> Boolean)) -> Vector Any
+    filter self filter =
+        predicate = unify_condition_or_predicate filter
+        builder = self.fold Vector.new_builder builder-> elem->
+            if predicate elem then builder.append elem else builder
+        builder.to_vector
+
+    ## GROUP Selections
+       ICON preparation
+       Selects all elements of this vector which satisfy a predicate.
+
+       Arguments:
+       - predicate: A function that takes an index and a list element and
+         returns a boolean value that says whether that value should be included
+         in the result.
+
+       > Example
+         Selecting all elements which are equal to their position in the vector.
+
+             [0, 10, 2, 2].filter (==) == [0, 2]
+    filter_with_index : (Integer -> Any -> Boolean) -> Vector Any
+    filter_with_index self predicate =
+        builder = self.fold_with_index Vector.new_builder builder-> ix-> elem->
+            if predicate ix elem then builder.append elem else builder
+        builder.to_vector
+
+    ## GROUP Selections
+       ICON preparation
+       Partitions the vector into `Vector`s of elements which satisfy a given
+       condition and ones that do not.
+
+       Returns a `Pair` whose `first` element is the `Vector` of elements
+       satisfying the predicate and the `second` element is a `Vector` of elements
+       which did not satisfy it.
+
+       The relative order of elements kept in each returned list is the same as
+       in the input vector.
+
+       Arguments:
+       - condition: A `Filter_Condition` or a predicate function to test each
+         element.
+
+       > Example
+         Splitting a vector into elements that start with a prefix.
+
+             ["a", "b", "ax", "bx"].partition (Filter_Condition.Starts_With "a") == (Pair ["a", "ax"] ["b", "bx"])
+
+       > Example
+         Splitting a vector into even and odd elements.
+
+             [1, 2, 3, 4, 5].partition (x -> x % 2 == 0) == (Pair [2, 4] [1, 3, 5])
+    partition : (Filter_Condition | (Any -> Boolean)) -> Pair (Vector Any) (Vector Any)
+    partition self condition =
+        predicate = unify_condition_or_predicate condition
+        pair = self.fold (Pair.new Vector.new_builder Vector.new_builder) acc-> elem->
+            case predicate elem of
+                True ->
+                    Pair.new (acc.first.append elem) acc.second
+                False ->
+                    Pair.new acc.first (acc.second.append elem)
+        pair.map .to_vector
+
+    ## Partitions the vector into `Vector`s of elements which satisfy a given
+       predicate and ones that do not.
+
+       Returns a `Pair` whose `first` element is the `Vector` of elements
+       satisfying the predicate and the `second` element is a `Vector` of elements
+       which did not satisfy it.
+
+       The relative order of elements kept in each returned list is the same as
+       in the input vector.
+
+       Arguments:
+       - predicate: A function that takes an index and an element and returns a
+         boolean value.
+
+       > Example
+         Splitting a vector into elements at even and odd positions.
+
+             ["a", "b", "c", "d"].partition_with_index (ix -> _ -> ix % 2 == 0) == (Pair ["a", "c"] ["b", "d"])
+    partition_with_index : (Integer -> Any -> Boolean) -> Pair (Vector Any) (Vector Any)
+    partition_with_index self predicate =
+        pair = self.fold_with_index (Pair.new Vector.new_builder Vector.new_builder) acc-> ix-> elem->
+            case predicate ix elem of
+                True -> Pair.new (acc.first.append elem) acc.second
+                False -> Pair.new acc.first (acc.second.append elem)
+        pair.map .to_vector
+
+    ## ICON dataframe_map_column
+       Applies a function to each element of the vector, returning the `Vector` of
+       results.
+
+       Arguments:
+       - function: A function that takes an element in the vector and returns
+         some transformation of that element.
+       - on_problems: Specifies how to handle any problems that arise in
+         `function`.
+
+       ? Problem Handling
+
+         The result of Errors thrown when executing the function depend on
+         `on_problems`:
+         - Report_Error: The first error is thrown, and is wrapped in
+           `Map_Error`.
+         - No_Wrap: The first error is thrown, and is not wrapped in
+           `Map_Error`.
+         - Report_Warning: The result for that element is `Nothing`, 
+           the error is attached as a warning. Currently unimplemented.
+         - Ignore: The result is `Nothing`, and the error is
+           ignored.
+
+         Errors that are thrown when executing the supplied function are wrapped
+         in `Map_Error`, which contains the index at which the error occurred.
+
+         In the `Problem_Behavior.Report_Warning` case, only `MAX_MAP_WARNINGS`
+         warnings are attached to result values. After that, the warnings are
+         dropped, but a count of the additional warnings is attached in an
+         `Additional_Warnings` warning.
+
+       > Example
+         Add 1 to each element of the vector.
+
+             [1, 2, 3] . map +1
+    map : (Any -> Any) -> Problem_Behavior | No_Wrap -> Vector Any
+    map self function on_problems=Problem_Behavior.Report_Error =
+        Array_Like_Helpers.vector_from_function self.length (function << self.at) on_problems
+
+    ## Applies a function to each element of the vector, returning the `Vector`
+       that contains all results concatenated.
+
+       Arguments:
+       - function: A function that takes an element in the vector, transforms
+         it, and returns a `Vector`.
+       - on_problems: Specifies how to handle any problems that arise in
+         `function`.
+
+       ? Problem Handling
+
+         The result of Errors thrown when executing the function depend on
+         `on_problems`:
+         - Report_Error: The first error is thrown, and is wrapped in
+           `Map_Error`.
+         - No_Wrap: The first error is thrown, and is not wrapped in
+           `Map_Error`.
+         - Report_Warning: The result for that element is `Nothing`, 
+           the error is attached as a warning. Currently unimplemented.
+         - Ignore: The result is `Nothing`, and the error is
+           ignored.
+
+         Errors that are thrown when executing the supplied function are wrapped
+         in `Map_Error`, which contains the index at which the error occurred.
+
+         In the `Problem_Behavior.Report_Warning` case, only `MAX_MAP_WARNINGS`
+         warnings are attached to result values. After that, the warnings are
+         dropped, but a count of the additional warnings is attached in an
+         `Additional_Warnings` warning.
+
+       > Example
+         Replace each number `n` in the vector with itself repeated n times.
+
+            [0, 1, 2] . flat_map (n -> Vector.fill n n)
+    flat_map : (Any -> Vector Any) -> Problem_Behavior | No_Wrap -> Vector Any
+    flat_map self function on_problems=Problem_Behavior.Report_Error =
+        self.map function on_problems . flatten
+
+    ## GROUP Calculations
+       Transforms a vector of vectors into a `Vector` of inner elements - removes
+       one layer of nesting from a stack of nested vectors.
+
+       > Example
+         Flatten a vector of vectors of numbers.
+
+            [[1, 2, 3], [4, 10], [], [0], [0]] . flatten == [1, 2, 3, 4, 10, 0, 0]
+    flatten : Vector Any
+    flatten self = @Builtin_Method "Vector.flatten"
+
+    ## Applies a function to each element of the vector, returning the `Vector`
+       of results.
+
+       Arguments:
+       - function: A function that takes an index and an item and calculates a
+         new value for at that index.
+       - on_problems: Specifies how to handle any problems that arise in
+         `function`.
+
+       The function is called with both the element index as well as the
+       element itself.
+
+       ? Problem Handling
+
+         The result of Errors thrown when executing the function depend on
+         `on_problems`:
+         - Report_Error: The first error is thrown, and is wrapped in
+           `Map_Error`.
+         - No_Wrap: The first error is thrown, and is not wrapped in
+           `Map_Error`.
+         - Report_Warning: The result for that element is `Nothing`, 
+           the error is attached as a warning. Currently unimplemented.
+         - Ignore: The result is `Nothing`, and the error is
+           ignored.
+
+         Errors that are thrown when executing the supplied function are wrapped
+         in `Map_Error`, which contains the index at which the error occurred.
+
+         In the `Problem_Behavior.Report_Warning` case, only `MAX_MAP_WARNINGS`
+         warnings are attached to result values. After that, the warnings are
+         dropped, but a count of the additional warnings is attached in an
+         `Additional_Warnings` warning.
+
+       > Example
+         Sum numbers with their indices in a vector.
+
+             [1, 2, 3].map_with_index (+)
+    map_with_index : (Integer -> Any -> Any) -> Problem_Behavior | No_Wrap -> Vector Any
+    map_with_index self function on_problems=Problem_Behavior.Report_Error =
+        Array_Like_Helpers.vector_from_function self.length (i-> function i (self.at i)) on_problems
+
+    ## PRIVATE
+       ADVANCED
+       Applies a function to each element of the vector.
+
+       Unlike `map`, this method does not return the individual results,
+       therefore it is only useful for side-effecting computations.
+
+       Arguments:
+       - function: A function to apply to each element of the vector.
+
+       > Example
+         Print each element in the vector to standard output.
+
+             [1, 2, 3, 4, 5] . each IO.println
+    each : (Any -> Any) -> Nothing
+    each self f =
+        0.up_to self.length . each ix->
+            f (self.at ix)
+
+    ## PRIVATE
+       ADVANCED
+       Applies a function to each element of the vector.
+
+       Arguments:
+       - function: A function to apply that takes an index and an item.
+
+       The function is called with both the element index as well as the
+       element itself.
+
+       Unlike `map`, this method does not return the individual results,
+       therefore it is only useful for side-effecting computations.
+
+       > Example
+         Print each element in the vector to standard output.
+
+             [1, 2, 3, 4, 5] . each_with_index (ix->elem-> IO.println Pair ix elem)
+    each_with_index : (Integer -> Any -> Any) -> Nothing
+    each_with_index self f =
+        0.up_to self.length . each ix->
+            f ix (self.at ix)
+
+    ## GROUP Selections
+       Reverses the vector, returning a `Vector` with the same elements, but in
+       the opposite order.
+
+       > Example
+         Reverse a two-element vector.
+
+             [1, 2].reverse
+    reverse : Vector Any
+    reverse self = Vector.new self.length (i -> self.at (self.length - (1 + i)))
+
+    ## PRIVATE
+       Generates a human-readable text representation of the vector.
+    to_text : Text
+    to_text self = self.map .to_text . join ", " "[" "]"
+
+    ## PRIVATE
+    to_display_text : Text
+    to_display_text self = self.short_display_text max_entries=40
+
+    ## PRIVATE
+       ADVANCED
+
+       Generates a human-readable text representation of the vector, keeping its
+       length limited.
+
+       Arguments:
+       - max_entries: The maximum number of entries that are displayed. If the
+         vector contains more elements, the number of hidden elements is also
+         displayed.
+
+       > Example
+         Convert a large vector of numbers to a short text.
+
+             (0.up_to 100).to_vector.short_display_text max_entries=2 == "[0, 1 and 98 more elements]"
+    short_display_text : Integer -> Text
+    short_display_text self max_entries=10 =
+        if max_entries < 1 then Error.throw <| Illegal_Argument.Error "The `max_entries` parameter must be positive." else
+            prefix = self.take (Index_Sub_Range.First max_entries)
+            if prefix.length == self.length then self.to_text else
+                remaining_count = self.length - prefix.length
+                remaining_text = if remaining_count == 1 then "and 1 more element" else
+                    "and " + remaining_count.to_text + " more elements"
+                prefix.map .to_text . join ", " "[" " "+remaining_text+"]"
+
+    ## ALIAS append, concatenate, union
+       GROUP Operators
+       Concatenates two vectors, resulting in a new `Vector`, containing all the
+       elements of `self`, followed by all the elements of `that`.
+
+       Arguments:
+       - that: The vector to concatenate to the end of `self`.
+
+       > Example
+         Concatenate two single-element vectors.
+
+             [1] + [2]
+    + : Vector Any | Array -> Vector Any
+    + self that:(Vector | Array) = case that of
+        _ : Vector -> Vector.insert_builtin self self.length that
+        _ : Array -> self + Vector.from_polyglot_array that
+
+    ## GROUP Calculations
+       Inserts the given item into the vector at the given index.
+
+       Arguments:
+       - at: The index at which to insert the item before.
+         If the index is less than 0, the index will be counted back from the
+         end. If the index is equal to the length of the vector, the item will
+         be appended to the end of the vector.
+       - item: The item to insert into the vector.
+
+       > Example
+         Insert 'X' into a vector at different locations:
+
+            ['a', 'b', 'c'].insert 1 'X' == ['a', 'X', 'b', 'c']
+            ['a', 'b', 'c'].insert -1 'X' == ['a', 'b', 'X', 'c']
+            ['a', 'b', 'c'].insert item='X' == ['a', 'b', 'c', 'X']
+    insert : Integer -> Any -> Vector ! Index_Out_Of_Bounds
+    insert self at=self.length item=Nothing =
+        self_len = self.length
+        used_index = if at < 0 then self_len + at else at
+        if used_index < 0 || used_index > self_len then Error.throw (Index_Out_Of_Bounds.Error at self_len+1) else
+            if used_index == self_len then self + [item] else
+                if used_index == 0 then [item] + self else
+                    Vector.insert_builtin self used_index [item]
+
+    ## PRIVATE
+    insert_builtin vec at values = @Builtin_Method("Vector.insert_builtin")
+
+    ## GROUP Selections
+       Removes the item at the given index from the vector.
+
+       Arguments:
+       - at: The index at which to remove the item.
+         If the index is less than 0, the index will be counted back from the
+         end.
+    remove : Integer -> Vector
+    remove self at=-1 =
+        self_len = self.length
+        used_index = if at < 0 then self_len + at else at
+        if used_index >= self_len || used_index < 0 then Error.throw (Index_Out_Of_Bounds.Error at self_len) else
+            Vector.remove_builtin self used_index
+
+    ## PRIVATE
+    remove_builtin vec at = @Builtin_Method "Vector.remove_builtin"
+
+    ## GROUP Calculations
+       When `self` is a vector of text values, concatenates all the values by
+       interspersing them with `separator`.
+
+       Arguments:
+       - separator (optional): The text to use to join the textual elements of the vector.
+       - prefix (optional): The prefix to add at the beginning.
+       - suffix (optional): The suffix to add at the end.
+
+       > Example
+         Join the elements of the vector together as a string.
+
+             ["foo", "bar", "baz"].join ", "
+    join : Text -> Text -> Text -> Text
+    join self separator="" prefix="" suffix="" =
+        if self.is_empty then prefix+suffix else
+            if self.length == 1 then prefix + self.at 0 + suffix else
+                prefix + self.at 0 + (1.up_to self.length . fold "" acc-> i-> acc + separator + self.at i) + suffix
+
+    ## PRIVATE
+       Creates a new vector with the skipping elements until `start` and then
+       continuing until `end` index.
+
+       Arguments:
+       - start: The index of the first element to include.
+       - end: The index to stop slicing at.
+
+       > Example
+         Remove the first 2 elements then continue until index 5 from the vector.
+
+             [1, 2, 3, 4, 5, 6, 7, 8].slice 2 5 == [3, 4, 5]
+    slice : Integer -> Integer -> Vector Any
+    slice self start end = @Builtin_Method "Vector.slice"
+
+    ## ALIAS first, last, sample, slice
+       GROUP Selections
+       ICON select_row
+       Creates a new `Vector` with only the specified range of elements from the
+       input, removing any elements outside the range.
+
+       Arguments:
+       - range: The section of the this vector to return.
+         If an `Index_Sub_Range`, then the selection is interpreted following
+         the rules of that type.
+         If a `Range`, the selection is specified by two indices, from and to.
+    @range Index_Sub_Range.default_widget
+    take : (Index_Sub_Range | Range | Integer) -> Vector Any
+    take self range=(Index_Sub_Range.First 1) = case range of
+        ## We are using a specialized implementation for `take Sample`, because
+           the default implementation (which needs to be generic for any
+           collection) generates a random set of indices and then selects these
+           indices, but we can sample the vector directly.
+        Index_Sub_Range.Sample count seed ->
+            rng = Random.new_generator seed
+            rng.items self count
+        _ ->
+            take_helper self.length (self.at _) self.slice (slice_ranges self) range
+
+    ## ALIAS skip
+       GROUP Selections
+       ICON select_row
+       Creates a new `Vector`, removing any elements from the specified range.
+
+       Arguments:
+       - range: The section of the this vector to return.
+         If an `Index_Sub_Range`, then the selection is interpreted following
+         the rules of that type.
+         If a `Range`, the selection is specified by two indices, from and to.
+    @range Index_Sub_Range.default_widget
+    drop : (Index_Sub_Range | Range | Integer) -> Vector Any
+    drop self range=(Index_Sub_Range.First 1) =
+        drop_helper self.length (self.at _) self.slice (slice_ranges self) range
+
+    ## ALIAS combine, join by row position, merge
+       GROUP Calculations
+       ICON dataframes_join
+       Performs a pair-wise operation passed in `function` on consecutive
+       elements of `self` and `that`.
+
+       Arguments:
+       - that: The vector to zip with `self`.
+       - function: The function used to combine pairwise elements of `self` and
+         `that`.
+       - on_problems: Specifies how to handle any problems that arise in
+         `function`.
+
+       The result of this function is a `Vector` of length being the shorter of
+       `self` and `that`, containing results of calling `function`.
+
+       ? Problem Handling
+
+         The result of Errors thrown when executing the function depend on
+         `on_problems`:
+         - Report_Error: The first error is thrown, and is wrapped in
+           `Map_Error`.
+         - No_Wrap: The first error is thrown, and is not wrapped in
+           `Map_Error`.
+         - Report_Warning: The result for that element is `Nothing`, 
+           the error is attached as a warning. Currently unimplemented.
+         - Ignore: The result is `Nothing`, and the error is
+           ignored.
+
+         Errors that are thrown when executing the supplied function are wrapped
+         in `Map_Error`, which contains the index at which the error occurred.
+
+         In the `Problem_Behavior.Report_Warning` case, only `MAX_MAP_WARNINGS`
+         warnings are attached to result values. After that, the warnings are
+         dropped, but a count of the additional warnings is attached in an
+         `Additional_Warnings` warning.
+
+       > Example
+         Calculate the pairwise sum of two vectors.
+
+             [1, 2, 3].zip [4, 5, 6] (+)
+
+       > Example
+         When the `function` is not provided, it defaults to creating a pair
+         of both elements.
+
+             [1, 2, 3].zip [4, 5, 6] == [[1, 4], [2, 5], [3, 6]]
+    zip : Vector Any -> (Any -> Any -> Any) -> Problem_Behavior | No_Wrap -> Vector Any
+    zip self that:Vector function=[_,_] on_problems=Problem_Behavior.Report_Error =
+        len = self.length.min that.length
+        Array_Like_Helpers.vector_from_function len (i-> function (self.at i) (that.at i)) on_problems
+
+    ## GROUP Calculations
+       Extend `self` vector to the length of `n` appending elements `elem` to
+       the end.
+
+       Arguments:
+       - n: The length to pad `self` out to.
+       - elem: The element to fill the new padded slots with.
+
+       If the new length `n` is less than existing length, `self` vector is
+       returned.
+
+       > Example
+         Extending vector to the length of 5
+
+             [1, 2, 3].pad 5 0 == [1, 2, 3, 0, 0]
+
+       > Example
+         Extending vector to the length of 5
+
+             [1, 2, 3, 4, 5].pad 5 0 == [1, 2, 3, 4, 5]
+    pad : Integer -> Any -> Vector Any
+    pad self n elem =
+        if self.length >= n then self else
+            self + (Vector.fill n-self.length elem)
+
+    ## GROUP Selections
+       ICON select_row
+       Get the first element from the vector, or an `Index_Out_Of_Bounds` if the vector
+       is empty.
+
+       > Example
+         The following code returns 1.
+
+             [1, 2, 3, 4].first
+    first : Any ! Index_Out_Of_Bounds
+    first self = self.at 0
+
+    ## GROUP Selections
+       ICON select_row
+       Get the last element of the vector, or an `Index_Out_Of_Bounds` if the vector is
+       empty.
+
+       > Example
+         The following code returns 4.
+
+             [1, 2, 3, 4].last
+    last : Any ! Index_Out_Of_Bounds
+    last self = self.at -1
+
+    ## GROUP Selections
+       ICON select_row
+       Get the second element from the vector, or a `Index_Out_Of_Bounds` if the
+       vector doesn't have a second element.
+
+       Useful when tuples are implemented as vectors.
+
+       > Example
+         The following code returns 2.
+
+             [1, 2, 3, 4].second
+    second : Any ! Index_Out_Of_Bounds
+    second self = self.at 1
+
+    ## ALIAS order_by
+       GROUP Calculations
+       Sort the vector.
+
+       Arguments:
+       - order: The order in which the vector elements are sorted.
+       - on: A projection from the element type to the value of that element
+         being sorted on. If set to `Nothing` (the default),
+         identity function will be used.
+       - by: A function that compares the result of applying `on` to two
+         elements, returning an an `Ordering` if the two elements are comparable
+         or `Nothing` if they are not. If set to `Nothing` (the default argument),
+         `Ordering.compare _ _` method will be used.
+       - on_incomparable: A `Problem_Behavior` specifying what should happen if
+         two incomparable values are encountered.
+
+       By default, elements are sorted in ascending order.
+
+
+       This is a stable sort, meaning that items that compare the same will not
+       have their order changed by the sorting process.
+
+       ! Computational Complexity
+         The complexities for this sort are:
+         - *Worst-Case Time:* `O(n * log n)`
+         - *Best-Case Time:* `O(n)`
+         - *Average Time:* `O(n * log n)`
+         - *Worst-Case Space:* `O(n)` additional
+
+       ? Incomparable values
+         Incomparable values are either values with different comparators or with
+         the same comparator returning `Nothing` from its `compare` method.
+         See the documentation of the `Ordering` module for more info.
+
+       ? Implementation Note
+         The sort implementation is based upon an adaptive, iterative mergesort
+         that requires far fewer than `n * log(n)` comparisons when the vector
+         is partially sorted. When the vector is randomly ordered, the
+         performance is equivalent to a standard mergesort.
+
+       ? Multiple comparators
+         Elements with different comparators are incomparable by definition.
+         This case is handled by first grouping the `self` vector into groups
+         with the same comparator, recursively sorting these groups, and then
+         merging them back together. The order of the sorted groups in the
+         resulting vector is based on the order of fully qualified names of
+         the comparators in the `self` vector, with the exception of the group
+         for the default comparator, which is always the first group.
+
+         Additionally, an `Incomparable_Values` dataflow error will be returned
+         if the `on_incomparable` parameter is set to `Problem_Behavior.Report_Error`,
+         or a warning attached if the `on_incomparable` parameter is set to
+         `Problem_Behavior.Report_Warning` in case of encountering incomparable
+         values.
+
+         It takes equal advantage of ascending and descending runs in the array,
+         making it much simpler to merge two or more sorted arrays: simply
+         concatenate them and sort.
+
+       > Example
+         Sorting a vector of numbers.
+
+             [5, 2, 3, 45, 15].sort == [2, 3, 5, 15, 45]
+
+       > Example
+         Sorting a vector of `Pair`s on the first element, descending.
+
+             [Pair 1 2, Pair -1 8].sort Sort_Direction.Descending (_.first)
+
+       > Example
+         Sorting a vector with elements with different comparators. Values `1`
+         and `My_Type` have different comparators. `1` will be sorted before `My_Type`
+         because it has the default comparator.
+
+             [My_Type.Value 'hello', 1].sort == [1, My_Type.Value 'hello']
+    sort : Sort_Direction -> (Any -> Any)|Nothing -> (Any -> Any -> (Ordering|Nothing))|Nothing -> Problem_Behavior -> Vector Any ! Incomparable_Values
+    sort self (order = Sort_Direction.Ascending) on=Nothing by=Nothing on_incomparable=Problem_Behavior.Ignore =
+        comps = case on == Nothing of
+            True -> self.map it-> Comparable.from it
+            False -> self.map it-> Comparable.from (on it)
+        compare_funcs = comps.map (it-> it.compare)
+        self.sort_builtin order.to_sign comps compare_funcs by on on_incomparable.to_number
+
+    ## GROUP Selections
+       ICON preparation
+       Keeps only unique elements within the vector, removing any duplicates.
+
+       Arguments:
+       - on: A projection from the element type to the value of that element
+             which determines the uniqueness criteria.
+
+       The returned unique elements are kept in the same order as they appeared
+       in the input.
+
+       Out of multiple equivalent (equal up to the `on` projection) elements,
+       always the one appearing first in the input is kept.
+
+       > Example
+         Removing repeating entries.
+
+             [1, 3, 1, 2, 2, 1] . distinct == [1, 3, 2]
+
+       > Example
+         Keeping only pairs whose first elements are unique.
+
+             [Pair 1 "a", Pair 2 "b", Pair 1 "c"] . distinct (on = _.first) == [Pair 1 "a", Pair 2 "b"]
+    distinct : (Any -> Any) -> Vector Any
+    distinct self (on = x->x) =
+        builder = Vector.new_builder
+        result = self.fold Map.empty existing->
+            item->
+                key = on item
+                if (existing.get key False) then existing else
+                    builder.append item
+                    existing.insert key True
+        if result.is_error then result else builder.to_vector
+
+    ## Returns the vector as a `Vector`.
+    to_vector : Vector
+    to_vector self = self
+
+    ## Converts the vector to a list with the same elements.
+    to_list : List
+    to_list self =
+        self.reverse.fold List.Nil acc-> elem-> List.Cons elem acc
+
+## PRIVATE
+type Builder
+    ## PRIVATE
+
+       A builder type for Enso vectors.
+
+       Arguments:
+       - java_builder: The accumulator for the new vector.
+
+       A vector builder is a mutable data structure, that allows to gather a
+       number of elements and then convert them to a vector. This is
+       particularly useful when the number of elements is not known upfront.
+
+       > Example
+         In the following example we'll read items from the standard input,
+         until the string "end" is entered by the user and then return a vector
+         containing all items.
+
+             Construct a vector using a builder that contains the items 1 to 10.
+
+                 example_new_builder =
+                     do_build builder start stop =
+                         new_builder = builder.append start
+                         if start >= stop then new_builder else
+                             @Tail_Call do_build new_builder start+1 stop
+                     builder = do_build Vector.new_builder 1 10
+                     builder.to_vector
+
+       ! TODO
+         We may want to revisit the fold pattern - it is required for correct
+         propagation of dataflow errors, but it is very easy to forget about it
+         and get wrong error propagation. Instead we may want to have a `Ref`
+         inside of the Builder. Any error detected during `append` could set
+         that `Ref` and then `to_vector` could propagate that error.
+    Value java_builder
+
+    ## PRIVATE
+       Creates a new builder.
+
+       Arguments:
+       - capacity: Initial capacity of the Vector.Builder
+
+       > Example
+         Make a new builder
+
+             Vector.new_builder
+    new : Integer -> Builder
+    new (capacity=10) = Builder.Value (Array_Like_Helpers.new_vector_builder capacity)
+
+    ## GROUP Logical
+       Checks if this builder is empty.
+    is_empty : Boolean
+    is_empty self = self.java_builder.isEmpty
+
+    ## GROUP Logical
+       Checks if this builder is not empty.
+    not_empty : Boolean
+    not_empty self = self.is_empty.not
+
+    ## GROUP Metadata
+       Gets the current length of the builder.
+    length : Integer
+    length self = self.java_builder.getSize
+
+    ## Appends a new element into this builder and returns it, propagating any
+       errors that the provided element could have contained.
+
+       Arguments:
+       - item: The item to append to the vector builder.
+
+       > Example
+         Append two items.
+
+             builder = Vector.new_builder
+             builder . append 10 . append 20
+    append : Any ! Error -> Builder ! Error
+    append self item = case item of
+        _ ->
+            self.unsafe_append item
+            self
+
+    ## Appends a part of a given vector to this builder
+
+       Arguments:
+       - vector: The vector from which the elements are sourced.
+       - start: The start index of the range to append.
+       - end: The end index (the first index after the last element to be
+         appended) of the range to be appended.
+
+       > Example
+         Append a part of the vector.
+
+             builder = Vector.new_builder
+             builder . append_vector_range [20, 30, 40, 50] 1 3 . to_vector == [30, 40]
+    append_vector_range : Vector Any ! Error -> Integer -> Integer -> Builder ! Error
+    append_vector_range self vector start=0 end=vector.length =
+        subrange = vector.slice start end
+        ## This workaround is needed because
+           `self.java_builder.addAll subrange.to_array` fails with
+           `Unsupported argument types: [Array]`.
+        append_result = self.java_builder.appendTo subrange
+        append_result.if_not_error self
+
+    ## PRIVATE
+       Appends a new element into this builder.
+
+       ? Propagating Dataflow Errors
+         Since this is an imperative operation which returns Nothing, if the
+         item to be appended contained a dataflow error, the operation will fail
+         and unless its result is inspected, the error can very easily be
+         ignored. To avoid this, prefer to use the `append` operation and
+         consume the returned builder which will contain any dataflow errors if
+         they need to be propagated.
+
+       Arguments:
+       - item: The item to append to the vector builder.
+
+       > Example
+         Append an item to a vector builder.
+
+             Vector.new_builder.unsafe_append 10
+    unsafe_append : Any -> Nothing
+    unsafe_append self item = self.java_builder.add item
+
+    ## GROUP Selections
+       Gets an element from the vector builder at a specified index (0-based).
+
+       Arguments:
+       - index: The location in the vector to get the element from. The index is
+         also allowed be negative, then the elements are indexed from the back
+         of the vector, i.e. -1 will correspond to the last element.
+    at : Integer -> Any ! Index_Out_Of_Bounds
+    at self index =
+        actual_index = if index < 0 then self.length + index else index
+        Panic.catch IndexOutOfBoundsException (self.java_builder.get actual_index) _->
+            Error.throw (Index_Out_Of_Bounds.Error index self.length)
+
+    ## GROUP Selections
+       Get the first element from the vector, or an `Index_Out_Of_Bounds` if the vector
+       is empty.
+
+       > Example
+         The following code returns 1.
+
+             [1, 2, 3, 4].first
+    first : Vector ! Index_Out_Of_Bounds
+    first self = self.at 0
+
+    ## GROUP Selections
+       Get the last element of the vector, or an `Index_Out_Of_Bounds` if the vector is
+       empty.
+
+       > Example
+         The following code returns 4.
+
+             [1, 2, 3, 4].last
+    last : Vector ! Index_Out_Of_Bounds
+    last self = self.at -1
+
+    ## GROUP Logical
+       Checks whether a predicate holds for at least one element of this builder.
+
+       Arguments:
+       - condition: A `Filter_Condition` or a function that takes a vector
+         element and returns a boolean value that says whether that value
+         satisfies a condition.
+    any : (Filter_Condition | (Any -> Boolean)) -> Boolean
+    any self condition =
+        predicate = unify_condition_or_predicate condition
+        0.up_to self.length . any (idx -> (predicate (self.java_builder.get idx)))
+
+    ## GROUP Conversions
+       Converts this builder to a vector containing all the appended elements.
+
+       > Example
+         Use a builder to add elements to and then create a vector.
+
+            example_to_vector =
+                bldr = Vector.new_builder
+                bldr.append 1
+                bldr.append 10
+                bldr.append 100
+                bldr.to_vector
+    to_vector : Vector Any
+    to_vector self =
+        ## This creates a fresh copy of the builders storage, so any future
+           changes to the builder will not affect the returned vector.
+        Vector.from_polyglot_array self.java_builder.toArray
+
+## PRIVATE
+   Describes an error attached to a value within a `Vector`. The `index` field
+   contains the index into the `Vector` at which the error occurred.
+
+   If a value is nested within multiple `Vector`s, its warnings are wrapped
+   with `Map_Error` multiple times. The outermost `Map_Error` index indicates
+   the index into the outermost `Vector`, the second `Map_Error` index the index
+   into the sub-`Vector` within the outermost `Vector`, and so on.
+
+   An error that is wrapped as a `Map_Error` can be caught as a `Map_Error`, or
+   as itself. In the latter case, the `Map_Error` wrapper is stripped off.
+@Builtin_Type
+type Map_Error
+    ## PRIVATE
+       Creates a new `Map_Error` from the given index and underlying error.
+    Error (index:Integer) inner_error
+
+    ## PRIVATE
+    to_display_text : Text
+    to_display_text self = "Error at index " + self.index.to_text + ": " + self.inner_error.to_display_text
+
+## PRIVATE
+   Indicates that a method should not wrap thrown errors in `Map_Error`.
+type No_Wrap
+
+## PRIVATE
+Wrapped_Error.from (that : Map_Error) = Wrapped_Error.Value that that.inner_error
+
+## PRIVATE
+   An error that indicates that the vector is empty.
+type Empty_Error
+    ## PRIVATE
+       Pretty prints the empty error.
+    to_display_text : Text
+    to_display_text self = "The vector is empty."
+
+## PRIVATE
+   Creates a new vector where for each range, a corresponding section of the
+   source vector is added to the result.
+
+   Assumes that the ranges have been already bounds-checked (for example by
+   passing them through `resolve_ranges`).
+slice_ranges vector ranges =
+    if ranges.length == 0 then [] else
+        if ranges.length != 1 then slice_many_ranges vector ranges else
+            case ranges.first of
+                _ : Integer -> [vector.at ranges.first]
+                Range.Between start end step -> case step == 1 of
+                    True -> vector.slice start end
+                    False -> slice_many_ranges vector ranges
+
+## PRIVATE
+   See `slice_ranges`.
+slice_many_ranges vector ranges =
+    new_length = ranges.fold 0 acc-> descriptor-> case descriptor of
+        _ : Integer -> acc+1
+        _ : Range -> acc+descriptor.length
+    builder = Vector.new_builder new_length
+    ranges.each descriptor-> case descriptor of
+        _ : Integer ->
+            builder.append (vector.at descriptor)
+        Range.Between start end step -> case step == 1 of
+            True ->
+                builder.append_vector_range vector start end
+            False ->
+                descriptor.each ix->
+                    builder.append (vector.at ix)
+    builder.to_vector
+
+## PRIVATE
+check_start_valid start length function =
+    used_start = if start < 0 then start + length else start
+    if used_start < 0 || used_start > length then Error.throw (Index_Out_Of_Bounds.Error start length+1) else
+        function used_start

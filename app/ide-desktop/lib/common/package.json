@@ -1,0 +1,11 @@
+{
+  "name": "enso-common",
+  "version": "1.0.0",
+  "type": "module",
+  "main": "./src/index.js",
+  "exports": {
+    ".": "./src/index.js",
+    "./src/detect": "./src/detect.ts",
+    "./src/gtag": "./src/gtag.ts"
+  }
+}

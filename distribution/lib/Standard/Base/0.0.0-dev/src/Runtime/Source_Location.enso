@@ -1,0 +1,68 @@
+import project.Data.Numbers.Integer
+import project.Data.Text.Text
+import project.Nothing.Nothing
+import project.System.File.File
+
+from project.Data.Boolean import Boolean, False, True
+
+## PRIVATE
+   ADVANCED
+   Represents a source location in Enso code. Contains information about the
+   source file and code position within it.
+type Source_Location
+    ## PRIVATE
+    Value prim_location
+
+    ## PRIVATE
+       Pretty prints the location.
+    to_text : Text
+    to_text self =
+        '(Source_Location ' + self.formatted_coordinates + ')'
+
+    ## Returns the 1-based line index of the start of this code range.
+    start_line : Integer
+    start_line self = self.prim_location.getStartLine
+
+    ## Returns the 1-based line index of the end of this code range.
+    end_line : Integer
+    end_line self = self.prim_location.getEndLine
+
+    ## Returns the 1-based column index of the start of this code range.
+    start_column : Integer
+    start_column self = self.prim_location.getStartColumn
+
+    ## Returns the 1-based column index of the end of this code range.
+    end_column : Integer
+    end_column self = self.prim_location.getEndColumn
+
+    ## Returns a pretty-printed location (file and line info).
+    formatted_coordinates : Text
+    formatted_coordinates self =
+        start_line = self.start_line
+        end_line = self.end_line
+        indices = case start_line == end_line of
+            True ->
+                row = start_line.to_text
+                start = self.start_column.to_text
+                end = self.end_column.to_text
+                row + ":" + start + "-" + end
+            False ->
+                start_line.to_text + '-' + end_line.to_text
+        if self.file.is_nothing then "? Unknown ?:" + indices else
+            cwd = File.current_directory
+            file = self.file.absolute
+            formatted_file = case file.is_child_of cwd of
+                True -> cwd.relativize file . path
+                _ -> file.path
+            formatted_file + ":" + indices
+
+    ## Return the source file corresponding to this location.
+    file : File | Nothing
+    file self =
+        source = self.prim_location.getSource
+        path = if source.is_nothing then Nothing else source.getPath
+        if path.is_nothing then Nothing else File.new path
+
+    ## PRIVATE
+    to_display_text : Text
+    to_display_text self = self.formatted_coordinates

@@ -1,0 +1,34 @@
+from Standard.Base import all
+import Standard.Base.Metadata.Display
+import Standard.Base.Metadata.Widget
+from Standard.Base.Metadata.Choice import Option
+from Standard.Base.Metadata.Widget import Single_Choice
+
+import project.Connection.Connection.Connection
+import project.Connection.Connection_Details.Connection_Details
+import project.Connection.Connection_Options.Connection_Options
+from project.Errors import SQL_Error
+
+polyglot java import org.enso.database.DatabaseConnectionDetailsSPI
+
+## GROUP Standard.Base.Input
+   Tries to connect to the database.
+
+   Arguments:
+   - details: `Connection_Details` specifying the database to connect to.
+   - options: Additional custom connection options for the JDBC connection.
+@details connection_details_widget
+connect : Connection_Details -> Connection_Options -> Connection ! SQL_Error
+connect details options=Connection_Options.Value =
+    details.connect options
+
+## PRIVATE
+connection_details_widget : Widget
+connection_details_widget =
+    default_constructors = Vector.from_polyglot_array <|
+        DatabaseConnectionDetailsSPI.get_default_constructors False
+    choices = default_constructors.map pair->
+        name = pair.first
+        code = pair.second
+        Option name code
+    Single_Choice display=Display.Always values=choices

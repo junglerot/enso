@@ -1,0 +1,83 @@
+from Standard.Base import all
+import Standard.Base.Errors.Illegal_Argument.Illegal_Argument
+from Standard.Base.Runtime import assert
+
+import project.Data.Column.Column
+import project.Data.Table.Table
+import project.Internal.IR.Internal_Column.Internal_Column
+from project.Errors import Unsupported_Database_Operation
+
+polyglot java import java.util.regex.Pattern
+
+## PRIVATE
+
+   Checks if the two tables or columns have the same context and use the same
+   connection.
+
+   Arguments:
+   - entity1: The entity to check against the second.
+   - entity2: The entity to check against the first.
+
+   To combine different objects they need to satisfy this requirement, otherwise
+   the combination would be ill-formed.
+check_integrity : (Table | Column) -> (Table | Column) -> Boolean
+check_integrity entity1 entity2 =
+    ctx = entity1.context == entity2.context
+    ctx && (check_connection entity1 entity2)
+
+## PRIVATE
+
+   Checks if the two tables or columns use the same connection.
+
+   Arguments:
+   - entity1: The entity to check against the second.
+   - entity2: The entity to check against the first.
+check_connection : (Table | Column) -> (Table | Column) -> Boolean
+check_connection entity1 entity2 =
+    # The `if_not_error` is needed `Meta.is_same_object` does not forward dataflow errors.
+    entity1.if_not_error <| entity2.if_not_error <|
+        Meta.is_same_object entity1.connection entity2.connection
+
+## PRIVATE
+ensure_same_connection : Text -> Vector -> Any -> Any ! Illegal_Argument
+ensure_same_connection name entities ~continuation =
+    assert entities.not_empty
+    all_same = entities.all entity-> check_connection entity entities.first
+    if all_same then continuation else
+        Error.throw (Illegal_Argument.Error "The input "+name+"s come from different connections. Cross-connection operations are not supported.")
+
+## PRIVATE
+
+   A helper function simplifying argument handling.
+
+   Arguments:
+   - x: A value that may or may not be a vector.
+
+   It always returns a vector, if the argument was already a vector, it is kept
+   as-is, otherwise it is wrapped in a singleton vector.
+unify_vector_singleton : (Any | Vector Any) -> Vector Any
+unify_vector_singleton x = case x of
+    _ : Vector -> x
+    _ -> [x]
+
+## PRIVATE
+assume_default_locale : Locale -> Any -> Any ! Unsupported_Database_Operation
+assume_default_locale locale ~action =
+    case locale == Locale.default of
+        True -> action
+        False ->
+            msg = "Custom locales are not supported for operations in the Database backend. If you want to use them, you need to materialize the table first."
+            Error.throw (Unsupported_Database_Operation.Error msg)
+
+## PRIVATE
+
+   Transforms the vector of columns, changing names of each column to the
+   corresponding name from the second vector.
+
+   Arguments:
+   - columns: A vector of columns to rename.
+   - new_names: The new names for the columns.
+rename_internal_columns : Vector Internal_Column -> Vector Text -> Vector Internal_Column
+rename_internal_columns columns new_names =
+    columns.zip new_names col-> name->
+        col.rename name

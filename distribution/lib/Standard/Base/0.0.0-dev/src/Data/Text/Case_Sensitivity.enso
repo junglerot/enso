@@ -1,0 +1,72 @@
+import project.Any.Any
+import project.Data.Locale.Locale
+import project.Data.Text.Regex.Regex
+import project.Data.Text.Text
+import project.Error.Error
+import project.Errors.Illegal_Argument.Illegal_Argument
+from project.Data.Boolean import Boolean, False, True
+
+polyglot java import org.enso.base.text.TextFoldingStrategy
+
+type Case_Sensitivity
+    ## Use the default case-sensitivity for the environment.
+       For in-memory operations, it will be case sensitive.
+       For database operations, it will follow the collation default.
+    Default
+
+    ## Represents a case-sensitive comparison mode.
+    Sensitive
+
+    ## Represents a case-insensitive comparison mode.
+
+       Arguments:
+       - locale: The locale used for the comparison.
+    Insensitive (locale : Locale = Locale.default)
+
+    ## PRIVATE
+       Convert Case_Sensitivity to a friendly string.
+    to_display_text : Text
+    to_display_text self = case self of
+        Case_Sensitivity.Default -> "Default"
+        Case_Sensitivity.Sensitive -> "Sensitive"
+        Case_Sensitivity.Insensitive locale ->
+            if locale == Locale.default then "Insensitive" else "Insensitive(" + locale.to_text + ")"
+
+    ## PRIVATE
+       Creates a Java `TextFoldingStrategy` from the case sensitivity setting.
+    folding_strategy : Case_Sensitivity -> TextFoldingStrategy
+    folding_strategy case_sensitivity = case case_sensitivity of
+        Case_Sensitivity.Default -> TextFoldingStrategy.unicodeNormalizedFold
+        Case_Sensitivity.Sensitive -> TextFoldingStrategy.unicodeNormalizedFold
+        Case_Sensitivity.Insensitive locale ->
+            TextFoldingStrategy.caseInsensitiveFold locale.java_locale
+
+    ## PRIVATE
+       Is case insensitive when in memory. This requires that, if
+       case-insensitive, that the locale be the default locale, and if it's not,
+       throws Illegal_Argument.
+    is_case_insensitive_in_memory : Boolean
+    is_case_insensitive_in_memory self = case self of
+        Case_Sensitivity.Default -> False
+        Case_Sensitivity.Sensitive -> False
+        Case_Sensitivity.Insensitive locale -> case locale == Locale.default of
+            True -> True
+            False ->
+                msg = "Custom locales are not supported for this operation."
+                Error.throw (Illegal_Argument.Error msg)
+
+    ## PRIVATE
+       Convert to either Sensitive or Insensitive, for the in-memory case.
+    to_explicit_sensitivity_in_memory : Case_Sensitivity
+    to_explicit_sensitivity_in_memory self = case self of
+        Case_Sensitivity.Default -> Case_Sensitivity.Sensitive
+        _ -> self
+
+    ## PRIVATE
+       Throws an error if self is Insensitive with a non-default locale
+    disallow_non_default_locale : Any -> Any
+    disallow_non_default_locale self ~action = case self of
+        Case_Sensitivity.Insensitive locale -> if locale == Locale.default then action else
+            msg = "Custom locales are not supported for this operation."
+            Error.throw (Illegal_Argument.Error msg)
+        _ -> action

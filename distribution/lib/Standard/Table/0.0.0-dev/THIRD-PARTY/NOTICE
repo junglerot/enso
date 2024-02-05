@@ -1,0 +1,82 @@
+Enso
+Copyright 2020 - 2024 New Byte Order sp. z o. o.
+
+'curvesapi', licensed under the BSD License, is distributed with the Table.
+The license file can be found at `licenses/BSD-3-Clause`.
+Copyright notices related to this dependency can be found in the directory `com.github.virtuald.curvesapi-1.07`.
+
+
+'univocity-parsers', licensed under the Apache 2, is distributed with the Table.
+The license file can be found at `licenses/APACHE2.0`.
+Copyright notices related to this dependency can be found in the directory `com.univocity.univocity-parsers-2.9.1`.
+
+
+'SparseBitSet', licensed under the The Apache Software License, Version 2.0, is distributed with the Table.
+The license information can be found along with the copyright notices.
+Copyright notices related to this dependency can be found in the directory `com.zaxxer.SparseBitSet-1.2`.
+
+
+'commons-codec', licensed under the Apache License, Version 2.0, is distributed with the Table.
+The license file can be found at `licenses/APACHE2.0`.
+Copyright notices related to this dependency can be found in the directory `commons-codec.commons-codec-1.15`.
+
+
+'commons-io', licensed under the Apache License, Version 2.0, is distributed with the Table.
+The license file can be found at `licenses/APACHE2.0`.
+Copyright notices related to this dependency can be found in the directory `commons-io.commons-io-2.11.0`.
+
+
+'antlr4-runtime', licensed under the BSD-3-Clause, is distributed with the Table.
+The license file can be found at `licenses/BSD-3-Clause`.
+Copyright notices related to this dependency can be found in the directory `org.antlr.antlr4-runtime-4.13.0`.
+
+
+'commons-collections4', licensed under the Apache License, Version 2.0, is distributed with the Table.
+The license information can be found along with the copyright notices.
+Copyright notices related to this dependency can be found in the directory `org.apache.commons.commons-collections4-4.4`.
+
+
+'commons-compress', licensed under the Apache License, Version 2.0, is distributed with the Table.
+The license file can be found at `licenses/APACHE2.0`.
+Copyright notices related to this dependency can be found in the directory `org.apache.commons.commons-compress-1.21`.
+
+
+'commons-math3', licensed under the Apache License, Version 2.0, is distributed with the Table.
+The license information can be found along with the copyright notices.
+Copyright notices related to this dependency can be found in the directory `org.apache.commons.commons-math3-3.6.1`.
+
+
+'log4j-api', licensed under the Apache License, Version 2.0, is distributed with the Table.
+The license information can be found along with the copyright notices.
+Copyright notices related to this dependency can be found in the directory `org.apache.logging.log4j.log4j-api-2.18.0`.
+
+
+'log4j-to-slf4j', licensed under the Apache License, Version 2.0, is distributed with the Table.
+The license file can be found at `licenses/APACHE2.0`.
+Copyright notices related to this dependency can be found in the directory `org.apache.logging.log4j.log4j-to-slf4j-2.18.0`.
+
+
+'poi', licensed under the Apache License, Version 2.0, is distributed with the Table.
+The license information can be found along with the copyright notices.
+Copyright notices related to this dependency can be found in the directory `org.apache.poi.poi-5.2.3`.
+
+
+'poi-ooxml', licensed under the Apache License, Version 2.0, is distributed with the Table.
+The license information can be found along with the copyright notices.
+Copyright notices related to this dependency can be found in the directory `org.apache.poi.poi-ooxml-5.2.3`.
+
+
+'poi-ooxml-lite', licensed under the Apache License, Version 2.0, is distributed with the Table.
+The license information can be found along with the copyright notices.
+Copyright notices related to this dependency can be found in the directory `org.apache.poi.poi-ooxml-lite-5.2.3`.
+
+
+'xmlbeans', licensed under the The Apache Software License, Version 2.0, is distributed with the Table.
+The license file can be found at `licenses/APACHE2.0`.
+Copyright notices related to this dependency can be found in the directory `org.apache.xmlbeans.xmlbeans-5.1.1`.
+
+
+'slf4j-api', licensed under the MIT License, is distributed with the Table.
+The license file can be found at `licenses/MIT`.
+Copyright notices related to this dependency can be found in the directory `org.slf4j.slf4j-api-1.7.36`.
+

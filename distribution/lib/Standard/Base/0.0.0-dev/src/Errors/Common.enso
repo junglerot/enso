@@ -1,0 +1,469 @@
+import project.Data.Numbers.Integer
+import project.Data.Text.Extensions
+import project.Data.Text.Text
+import project.Error.Error
+import project.Errors.Common.Arithmetic_Error
+import project.Function.Function
+import project.Meta
+import project.Nothing.Nothing
+import project.Panic.Panic
+import project.Runtime
+import project.Runtime.Source_Location.Source_Location
+from project.Data.Boolean import Boolean, False, True
+
+polyglot java import java.lang.ArithmeticException
+polyglot java import java.lang.ClassCastException
+polyglot java import java.lang.OutOfMemoryError
+polyglot java import org.enso.base.CompareException
+
+## An error indicating that no value was found.
+type Not_Found
+
+@Builtin_Type
+type Index_Out_Of_Bounds
+    ## PRIVATE
+       UNSTABLE
+
+       An error indicating that a requested index was out of bounds of a collection.
+
+       Arguments:
+       - index: The requested index.
+       - length: The length of the collection.
+    Error index length
+
+    ## PRIVATE
+       Pretty prints an index out of bounds error.
+    to_display_text : Text
+    to_display_text self =
+        "The index " + self.index.to_text + " is out of bounds in a collection of length " + self.length.to_text + "."
+
+@Builtin_Type
+type Syntax_Error
+    ## PRIVATE
+       The runtime representation of a syntax error.
+
+       Arguments:
+       - message: A description of the erroneous syntax.
+    Error message
+
+    ## PRIVATE
+       Convert the Syntax_Error error to a human-readable format.
+    to_display_text : Text
+    to_display_text self = "Syntax error: "+self.message+"."
+
+@Builtin_Type
+type Type_Error
+    ## PRIVATE
+       The runtime representation of a type error.
+
+       Arguments:
+       - expected: The expected type at the error location.
+       - actual: The actual type at the error location.
+       - comment: Description of the value that was being checked,
+         e.g. function argument, result or an arbitrary expression.
+    Error expected actual comment
+
+    ## PRIVATE
+       Convert the Type_Error error to a human-readable format.
+    to_display_text : Text
+    to_display_text self =
+        type_of_actual =
+           tpe = Meta.type_of self.actual
+           if tpe.is_error then self.actual.to_display_text else case self.actual of
+               fn:Function ->
+                    fn_info = fn.to_text
+                    missing_args = fn_info.split " " . filter (_.ends_with "=_") . map (_.split "=") . map (_.at 0)
+                    fn_info + case missing_args.length of
+                        0 -> ""
+                        1 -> ". Try to apply " + (missing_args.at 0) + " argument"
+                        _ -> ". Try to apply " + (missing_args.join ", ") + " arguments"
+               _ -> tpe.to_text
+
+        "Type error: expected "+self.comment+" to be "+self.expected.to_display_text+", but got "+type_of_actual+"."
+
+@Builtin_Type
+type Compile_Error
+    ## PRIVATE
+       The runtime representation of a compilation error.
+
+       Arguments:
+       - message: A description of the erroneous state.
+    Error message
+
+    ## PRIVATE
+       Convert the Compile_Error error to a human-readable format.
+    to_display_text : Text
+    to_display_text self = "Compile error: "+self.message+"."
+
+@Builtin_Type
+type Assertion_Error
+    ## PRIVATE
+    Error message
+
+    ## PRIVATE
+       Convert the Assertion_Error to a human-readable format.
+    to_display_text : Text
+    to_display_text self = "Assertion Error: '" + self.message.to_text + "'"
+
+@Builtin_Type
+type Inexhaustive_Pattern_Match
+    ## PRIVATE
+       The error thrown when a there is no pattern to match on the scrutinee.
+
+       Arguments:
+       - scrutinee: The scrutinee that failed to match.
+    Error scrutinee
+
+    ## PRIVATE
+       Convert the Inexhaustive_Pattern_Match error to a human-readable format.
+    to_display_text : Text
+    to_display_text self = "Inexhaustive pattern match: no branch matches "+self.scrutinee.to_display_text+"."
+
+@Builtin_Type
+type Arity_Error
+    ## PRIVATE
+       The error thrown when the number of arguments provided to an operation
+       does not match the expected number of arguments.
+
+       Arguments:
+       - expected_min: the minimum expected number of arguments.
+       - expected_max: the maximum expected number of arguments.
+       - actual: the actual number of arguments passed.
+    Error expected_min expected_max actual
+
+    ## PRIVATE
+       Convert the Arity_Error error to a human-readable format.
+    to_display_text : Text
+    to_display_text self =
+        expected = self.expected_min.to_text
+        expectedRange = if (self.expected_min == self.expected_max) then expected else
+            if (self.expected_max == -1) then expected+"-" else expected+self.expected_max.to_text
+
+        "Wrong number of arguments. Expected "+expectedRange+", but got "+self.actual.to_text+"."
+
+@Builtin_Type
+type Uninitialized_State
+    ## PRIVATE
+       The error thrown when the program attempts to read from a state slot that has
+       not yet been initialized.
+
+       Arguments:
+       - key: The key for the state slot that was not initialized.
+    Error key
+
+    ## PRIVATE
+       Convert the Uninitialized_State error to a human-readable format.
+    to_display_text : Text
+    to_display_text self = "State is not initialized for type "+self.key.to_display_text+"."
+
+@Builtin_Type
+type No_Such_Method
+    ## PRIVATE
+       The error thrown when the specified symbol does not exist as a method on
+       the target.
+
+       Arguments:
+       - target: The target on which the attempted method call was performed.
+       - symbol: The symbol that was attempted to be called on target.
+    Error target symbol
+
+    ## PRIVATE
+       ADVANCED
+       Returns the method name of the method that could not be found.
+
+       > Example
+         Getting the method name from a no such method error.
+
+             import Standard.Examples
+
+             example_method_name =
+                 error = Examples.no_such_method
+                 error.method_name
+    method_name : Text
+    method_name self =
+        Meta.meta self.symbol . name
+
+    ## PRIVATE
+       Convert the No_Such_Method error to a human-readable format.
+    to_display_text : Text
+    to_display_text self =
+        target_type_name = if Meta.is_polyglot self.target then self.target.to_display_text else (Meta.type_of self.target).to_display_text
+        "Method `"+self.method_name+"` of type "+target_type_name+" could not be found."
+
+@Builtin_Type
+type No_Such_Field
+    ## PRIVATE
+       The error thrown when the specified symbol does not exist as a field on
+       the value.
+
+       Arguments:
+       - target: The target on which the field was accessed.
+       - field_name: The name of the field that was being accessed.
+    Error value field_name
+
+    ## PRIVATE
+       Convert the No_Such_Method error to a human-readable format.
+    to_display_text : Text
+    to_display_text self =
+        value_type_name = if Meta.is_polyglot self.value then self.value.to_display_text else (Meta.type_of self.value).to_display_text
+        "Field `"+self.field_name+"` of "+value_type_name+" could not be found."
+
+@Builtin_Type
+type Module_Not_In_Package_Error
+    ## An error that occurs when the enso_project function is called in a file
+       that is not part of a project.
+    Error
+
+    ## PRIVATE
+       Convert the Module_Not_In_Package_Error error to a human-readable format.
+    to_display_text : Text
+    to_display_text self = "Module is not a part of a package."
+
+@Builtin_Type
+type Arithmetic_Error
+    ## PRIVATE
+       An error for when an erroneous arithmetic computation takes place.
+
+       Arguments:
+       - message: A description of the error condition.
+    Error message
+
+    ## PRIVATE
+       Convert the Arithmetic_Error error to a human-readable format.
+    to_display_text : Text
+    to_display_text self = "Arithmetic error: "+self.message+"."
+
+    ## PRIVATE
+       Capture a Java `ArithmeticException` and convert it to an Enso dataflow error - `Arithmetic_Error.Error`.
+    handle_java_exception =
+        Panic.catch ArithmeticException handler=(cause-> Error.throw (Arithmetic_Error.Error cause.payload.getMessage))
+
+@Builtin_Type
+type Incomparable_Values
+    ## An error that indicates that the two values are not comparable.
+
+       Arguments:
+       - left: The left value (first operand).
+       - right: The right value (second operand).
+    Error left right
+
+    ## PRIVATE
+       Convert the Incomparable_Values error to a human-readable format.
+    to_display_text : Text
+    to_display_text self =
+        case self.left.is_nothing && self.right.is_nothing of
+            True -> "Incomparable_Values"
+            False -> "Cannot compare `" + self.left.to_text + "` with `" + self.right.to_text + "`"
+
+    ## PRIVATE
+       ADVANCED
+       Catches possible errors from comparing values and throws an
+       `Incomparable_Values` if any occur.
+    handle_errors ~function =
+        handle t = Panic.catch t handler=(_-> Error.throw (Incomparable_Values.Error Nothing Nothing))
+        handle_cmp_exc = Panic.catch CompareException handler=(exc-> Error.throw (Incomparable_Values.Error exc.getLeftOperand exc.getRightOperand))
+
+        handle ClassCastException <| handle No_Such_Method <| handle Type_Error <| handle Unsupported_Argument_Types <| handle_cmp_exc <|
+            function
+
+@Builtin_Type
+type Invalid_Array_Index
+    ## PRIVATE
+       An error that occurs when a program requests a read from an array index
+       that is out of bounds in the array.
+
+       Arguments:
+       - array: The array in which the index was requested.
+       - index: The index that was out of bounds.
+    Error array index
+
+    ## PRIVATE
+       Convert the Forbidden_Operation error to a human-readable format.
+    to_display_text : Text
+    to_display_text self = "Invalid array index: "+self.index.to_text+"."
+
+@Builtin_Type
+type Not_Invokable
+    ## PRIVATE
+       An error that occurs when an object is used as a function in a function
+       call, but it cannot be called.
+
+       Arguments:
+       - target: The called object.
+    Error target
+
+    ## PRIVATE
+       Convert the Not_Invokable error to a human-readable format.
+    to_display_text : Text
+    to_display_text self = "Type error: expected a function, but got "+self.target.to_display_text+"."
+
+@Builtin_Type
+type Unsupported_Argument_Types
+    ## PRIVATE
+       An error that occurs when arguments used in a function call are invalid
+       types for the function.
+
+       Arguments:
+       - arguments: The passed arguments.
+       - message: A detailed message.
+    Error arguments message
+
+    ## PRIVATE
+       Convert the Unsupported_Argument_Types error to a human-readable format.
+    to_display_text : Text
+    to_display_text self = self.message.to_text
+
+@Builtin_Type
+type Module_Does_Not_Exist
+    ## PRIVATE
+       An error that occurs when the specified module cannot be found.
+
+       Arguments:
+       - name: The module searched for.
+    Error name
+
+    ## PRIVATE
+       Convert the Module_Does_Not_Exist error to a human-readable format.
+    to_display_text : Text
+    to_display_text self = "Module "+self.name+" does not exist."
+
+@Builtin_Type
+type Invalid_Conversion_Target
+    ## PRIVATE
+       An error that occurs when the specified value cannot be converted to a given type.
+
+       Arguments:
+       - target: the type trying to be converted to.
+    Error target
+
+@Builtin_Type
+type No_Such_Conversion
+    ## PRIVATE
+       An error that occurs when the conversion from one type to another does not exist.
+
+       Arguments:
+       - target: the type trying to be converted to.
+       - that: the value to be converted.
+       - conversion: the conversion that was attempted.
+    Error target that conversion
+
+    ## PRIVATE
+       Convert the No_Such_Conversion error to a human-readable format.
+    to_display_text : Text
+    to_display_text self = "Could not find a conversion from `"+self.that.to_display_text+"` to `"+self.target.to_display_text+"`."
+
+@Builtin_Type
+type No_Conversion_Currying
+    ## PRIVATE
+       An error that occurs when an attempt is made to curry a conversion function.
+
+       Arguments:
+       - has_this: true, when `this` argument is present
+       - has_that: true, when `that` argument is present
+       - conversion: the conversion that was attempted.
+    Error has_this has_that conversion
+
+    ## PRIVATE
+       Convert the No_Conversion_Currying error to a human-readable format.
+    to_display_text : Text
+    to_display_text self =
+      case self.has_this of
+          True ->
+              case self.has_that of
+                    True -> "Conversion currying is not supported."
+                    False -> "Conversion currying without `that` argument is not supported."
+          False ->
+              case self.has_that of
+                  True -> "Conversion currying without `this` argument is not supported."
+                  False -> "Conversion currying without `this` and `that` arguments is not supported."
+
+@Builtin_Type
+type Forbidden_Operation
+    ## PRIVATE
+       An error that occurs when the action is not allowed to perform the operation in the given context.
+
+       Arguments:
+       - operation: attempted context that is not allowed.
+    Error operation
+
+    ## PRIVATE
+       Convert the Forbidden_Operation error to a human-readable format.
+    to_display_text : Text
+    to_display_text self = "Forbidden operation: "+self.operation+"."
+
+type Dry_Run_Operation
+    ## PRIVATE
+       A warning that the operation has only been performed in a test mode.
+
+       Arguments:
+       - message: The message to be displayed.
+    Warning message
+
+    ## PRIVATE
+       Convert the Dry_Run_Operation to a human-readable format.
+    to_display_text : Text
+    to_display_text self = self.message
+
+type Out_Of_Memory
+    ## PRIVATE
+       An error when Enso run's out of memory
+    Error operation
+
+    ## PRIVATE
+       Convert the Out_Of_Memory to a human-readable format.
+    to_display_text : Text
+    to_display_text self = "Enso ran out of memory performing the "+self.operation+" operation."
+
+    ## PRIVATE
+       ADVANCED
+       Catches possible `OutOfMemoryError` and throws an `Out_Of_Memory` error.
+    handle_java_exception operation ~function =
+        Panic.catch OutOfMemoryError handler=(_-> Error.throw (Out_Of_Memory.Error operation)) <|
+            function
+
+## Indicates that an expression cannot be evaluated because somewhere within it,
+   a function does not have all required arguments provided.
+type Missing_Required_Argument
+    ## PRIVATE
+       Indicates that an expression cannot be evaluated because somewhere within
+       it, a function does not have all required arguments provided.
+    Error (argument_name : Text) (function_name : Text) (call_location : Source_Location | Nothing)
+
+    ## PRIVATE
+    to_display_text : Text
+    to_display_text self =
+        "Missing required argument `" + self.argument_name + "` in function `" + self.function_name + "`."
+
+    ## PRIVATE
+       Throws an error saying that a required argument has not been provided.
+
+       This function is supposed to be used as a default value for arguments
+       that are supposed to be required and should prevent errors stemming from
+       a not-fully-applied function being passed around. Instead, this error is
+       raised and propagated to the top, so that the IDE can see that the node
+       still has some missing arguments within it.
+
+       > Example
+
+         my_function (arg1 = Missing_Required_Argument.ensure_present "arg1") (arg2 = 100) = arg1+arg2
+    ensure_present : Text -> Nothing ! Missing_Required_Argument
+    ensure_present (argument_name : Text = Missing_Required_Argument.ensure_present "argument_name") =
+        stack_trace = Runtime.get_stack_trace
+        function_frame = stack_trace . at 1
+        caller_frame = stack_trace . at 2
+
+        function_name = function_frame.name
+        call_location = caller_frame.source_location
+        Error.throw (Missing_Required_Argument.Error argument_name function_name call_location)
+
+## Warning when additional warnings occurred.
+type Additional_Warnings
+    ## PRIVATE
+    Error (count:Integer)
+
+    ## PRIVATE
+
+       Create a human-readable version of the error.
+    to_display_text : Text
+    to_display_text self =
+        "There were "+self.count.to_text+" additional issues."

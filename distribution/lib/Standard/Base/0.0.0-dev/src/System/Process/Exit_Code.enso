@@ -1,0 +1,50 @@
+import project.Data.Numbers.Integer
+import project.Data.Text.Text
+
+## The exit codes that the process can return.
+type Exit_Code
+    ## PRIVATE
+       ADVANCED
+       Create exit code from a number.
+
+       Arguments:
+       - code: The exit code you want to create.
+
+       > Example
+         Create a failure exit code.
+
+             import Standard.Base.System.Process.Exit_Code.Exit_Code
+
+             example_from_number = Exit_Code.from_number 1
+    from_number : Integer -> Exit_Code
+    from_number code = if code == 0 then Exit_Code.Success else Exit_Code.Failure code
+
+    ## The process exited with a success.
+    Success
+
+    ## The process exited with a failure.
+
+       Arguments:
+       - code: The exit code for the failure.
+    Failure code
+
+    ## GROUP Conversions
+       Convert exit code to a number.
+
+       > Example
+         Convert a success code to a corresponding number.
+
+             import Standard.Base.System.Process.Exit_Code.Exit_Code
+
+             example_to_number = Exit_Code.Success.to_number
+    to_number : Integer
+    to_number self = case self of
+        Exit_Code.Success -> 0
+        Exit_Code.Failure code -> code
+
+    ## PRIVATE
+       Convert to a display representation of this Exit_Code.
+    to_display_text : Text
+    to_display_text self = case self of
+        Exit_Code.Success -> "Success"
+        Exit_Code.Failure code -> "Failure " + code.to_display_text

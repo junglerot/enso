@@ -1,0 +1,650 @@
+import project.Any.Any
+import project.Data.Filter_Condition.Filter_Condition
+import project.Data.Numbers.Integer
+import project.Data.Numbers.Number
+import project.Data.Pair.Pair
+import project.Data.Text.Text
+import project.Data.Vector.Vector
+import project.Error.Error
+import project.Errors.Common.Index_Out_Of_Bounds
+import project.Errors.Common.Not_Found
+import project.Function.Function
+import project.Meta
+import project.Nothing.Nothing
+from project.Data.Boolean import Boolean, False, True
+from project.Data.Filter_Condition import unify_condition_or_predicate, unify_condition_predicate_or_element
+from project.Data.List.List import Cons, Nil
+
+## The basic cons-list type.
+
+   A cons-list allows storage of an arbitrary number of elements.
+
+   Prepending to the list can be achieved by using the `Cons` constructor,
+   while an empty list is represented by `Nil`.
+
+   > Example
+     A list containing the elements `1`, `2`, and `3`, in this order is:
+         Cons 1 (Cons 2 (Cons 3 Nil))
+## Cons lists.
+type List
+
+    ## The type that indicates the end of a cons list.
+    Nil
+
+    ## A cons cell for a cons list.
+
+       Arguments:
+       - x: The element at this position in the list.
+       - xs: The rest of the list.
+    Cons x xs
+
+    ## GROUP Metadata
+       Computes the number of elements in the list.
+
+       ! Computational Complexity
+
+         Note that this is a linear operation requiring O(n) time.
+
+       > Example
+         Get the length of a two item list.
+
+             import Standard.Examples
+
+             example_length = Examples.list.length
+    length : Number
+    length self = self.fold 0 (acc -> _ -> acc + 1)
+
+    ## GROUP Selections
+       Gets an element from the list at a specified index (0-based).
+
+       ! Computational Complexity
+
+         Note that this is a linear operation requiring O(n) time.
+
+       Arguments:
+       - index: The location in the List to get the element from. The index is
+         also allowed be negative, then the elements are indexed from the back
+         of the final item, i.e. -1 will correspond to the last element.
+
+       > Example
+         Get the second item by index.
+
+             import Standard.Examples
+
+             example_length = Examples.list.length
+    at : Integer -> Any ! Index_Out_Of_Bounds
+    at self index =
+        self.get index (Error.throw (Index_Out_Of_Bounds.Error index self.length))
+
+    ## Gets an element from the list at a specified index (0-based).
+       If the index is invalid then `if_missing` is returned.
+
+       ! Computational Complexity
+
+         Note that this is a linear operation requiring O(n) time.
+
+       Arguments:
+       - index: The location in the List to get the element from. The index is
+         also allowed be negative, then the elements are indexed from the back
+         of the final item, i.e. -1 will correspond to the last element.
+       - if_missing: The value to return if the index is out of bounds.
+    get : Integer -> Any -> Any
+    get self index ~if_missing=Nothing = case index >= 0 of
+        True ->
+            loop current index = case current of
+                Nil -> if_missing
+                Cons x xs -> if index == 0 then x else @Tail_Call loop xs (index - 1)
+            loop self index
+        False ->
+            loop current count lagged = case current of
+                Nil -> if count == 0 then lagged.x else if_missing
+                Cons _ xs ->
+                    new_lagged = if count > 0 then lagged else lagged.xs
+                    @Tail_Call loop xs (0.max count-1) new_lagged
+            loop self -index self
+
+    ## Combines all the elements of the list, by iteratively applying the
+       passed function with next elements of the list.
+
+       Arguments:
+       - init: The initial value for the fold.
+       - f: The binary function used to combine elements of the list.
+
+       In general, the result of
+           (Cons l0 <| Cons l1 <| ... <| Cons ln) . fold init f
+       is the same as
+           f (...(f (f init l0) l1)...) ln
+
+       > Example
+         In the following example, we'll compute the sum of all elements of a
+         list.
+
+             import Standard.Examples
+
+             example_fold = Examples.list.fold 0 (+)
+    fold : Any -> (Any -> Any -> Any) -> Any
+    fold self init f =
+        go acc list = case list of
+            Nil -> acc
+            Cons h t -> @Tail_Call go (f acc h) t
+        res = go init self
+        res
+
+    ## Combines all the elements of a non-empty list using a binary operation.
+       If the list is empty, it returns `if_empty`.
+
+       Arguments:
+       - function: A binary operation that takes two items and combines them.
+       - if_empty: Value returned if the list is empty.
+
+       > Example
+         Compute the sum of all the elements in a list.
+
+             import Standard.Examples
+
+             example_fold = Examples.list.reduce (+)
+    reduce : (Any -> Any -> Any) -> Any -> Any
+    reduce self function ~if_empty=(Error.throw Empty_Error.Error) = case self of
+        Nil -> if_empty
+        Cons x xs -> xs.fold x function
+
+    ## GROUP Logical
+       Checks whether any element of the list matches the given condition.
+
+       Arguments:
+       - condition: A `Filter_Condition` or a predicate function to test each
+         element.
+
+       > Example
+         Check if any element of the list is larger than 5.
+
+             import Standard.Examples
+
+             example_any = Examples.list.any (Filter_Condition.Greater than=5)
+
+       > Example
+         Check if any element of the list is even.
+
+             import Standard.Examples
+
+             example_any = Examples.list.any (x-> x%2 == 0)
+    any : (Filter_Condition | (Any -> Boolean)) -> Boolean
+    any self condition =
+        predicate = unify_condition_or_predicate condition
+        go list = case list of
+            Nil -> False
+            Cons h t -> if predicate h then True else
+                @Tail_Call go t
+        res = go self
+        res
+
+    ## GROUP Logical
+       Checks whether a condition holds for all elements in this list.
+
+       Arguments:
+       - condition: A `Filter_Condition` or a predicate function to test each
+         element.
+
+       > Example
+         Check if all elements in the list are greater than zero.
+
+             import Standard.Examples
+
+             example_all = Examples.list.all (Filter_Condition.Greater than=0)
+
+       > Example
+         Check if all elements in the list are even.
+
+             import Standard.Examples
+
+             example_all = Examples.list.all (x-> x%2 == 0)
+    all : (Filter_Condition | (Any -> Boolean)) -> Boolean
+    all self condition =
+        predicate = unify_condition_or_predicate condition
+        self . any (predicate >> .not) . not
+
+    ## GROUP Logical
+       Checks whether this list contains a given value as an element.
+
+       Arguments:
+       - elem: The element to check if it is in the list.
+
+       > Example
+         Checking if the list contains the number 3.
+
+             import Standard.Examples
+
+             example_contains = Examples.list.contains 3
+    contains : Any -> Boolean
+    contains self elem = self.any (== elem)
+
+    ## GROUP Logical
+       Checks if this list is empty.
+
+       > Example
+         Checking for emptiness.
+
+             import Standard.Examples
+
+             example_empty = Examples.list.is_empty
+    is_empty : Boolean
+    is_empty self = case self of
+        Nil -> True
+        Cons _ _ -> False
+
+    ## GROUP Logical
+       Checks if the list is not empty.
+
+       > Example
+         Checking for emptiness.
+
+             import Standard.Examples
+
+             example_not_empty = Examples.list.not_empty
+    not_empty : Boolean
+    not_empty self = self.is_empty.not
+
+    ## GROUP Selections
+       Selects all elements of this list which satisfy a condition.
+
+       Arguments:
+       - filter: The filter to apply to the list. It can either be an instance
+         of `Filter_Condition` or a predicate taking a value and returning a
+         boolean value indicating whether the corresponding element should be
+         kept or not.
+
+       > Example
+         Selecting all elements that are less than 3.
+
+             import Standard.Examples
+
+             example_filter = Examples.list.filter (< 3)
+             example_filter = Examples.list.filter (Filter_Condition.Less than=3)
+    filter : (Filter_Condition | (Any -> Boolean)) -> List Any
+    filter self filter =
+        predicate = unify_condition_or_predicate filter
+        case self of
+            Nil -> Nil
+            Cons x xs -> if predicate x . not then @Tail_Call xs.filter filter else
+                go list fill = case list of
+                    Nil -> fill Nil
+                    Cons h t -> if predicate h . not then @Tail_Call go t fill else
+                        res = Meta.atom_with_hole (Cons h _)
+                        fill res.value
+                        @Tail_Call go t res.fill
+
+                res = Meta.atom_with_hole (Cons x _)
+                go xs res.fill
+                res.value
+
+    ## GROUP Selections
+       Partitions the list into lists of elements which satisfy a given
+       condition and ones that do not.
+
+       Returns a `Pair` whose `first` element is the list of elements satisfying
+       the predicate and the `second` element is a list of elements which did
+       not satisfy it.
+
+       The relative order of elements kept in each returned list is the same as
+       in the input.
+
+       Arguments:
+       - condition: A `Filter_Condition` or a predicate function to test each
+         element.
+
+       > Example
+         Splitting a list into even and odd elements.
+
+             (Cons 1 (Cons 2 (Cons 3 Nil))).partition (x -> x % 2 == 0) == (Pair (Cons 2 Nil) (Cons 1 (Cons 3 Nil)))
+    partition : (Filter_Condition | (Any -> Boolean)) -> Pair (List Any) (List Any)
+    partition self condition =
+        predicate = unify_condition_or_predicate condition
+        self.reverse.fold (Pair.new Nil Nil) acc-> elem->
+            case predicate elem of
+                True  -> Pair.new (Cons elem acc.first) acc.second
+                False -> Pair.new acc.first (Cons elem acc.second)
+
+    ## Applies a function to each element of the list, returning the list of
+       results.
+
+       Arguments:
+       - f: The function to apply to each element of the list.
+
+       > Example
+         Add `1` to each element of the list:
+
+             import Standard.Examples
+
+             example_map = Examples.list.map +1
+    map : (Any -> Any) -> List
+    map self f = case self of
+        Nil -> Nil
+        Cons h t ->
+            go : List -> Any -> (Any -> Any) -> Nothing
+            go list fill = case list of
+                Nil -> fill Nil
+                Cons h t ->
+                    v = f h
+                    res = Meta.atom_with_hole (Cons v _)
+                    fill res.value
+                    @Tail_Call go t res.fill
+            v = f h
+            res = Meta.atom_with_hole (Cons v _)
+            go t res.fill
+            res.value
+
+    ## PRIVATE
+       ADVANCED
+       Applies a function to each element of the list.
+
+       Arguments:
+       - f: The function to apply to each element of the list.
+
+       Unlike `map`, this method does not return the individual results,
+       therefore it is only useful for side-effecting computations.
+
+       > Example
+         Print each of the list elements to the standard output.
+
+             import Standard.Examples
+
+             example_each = Examples.list.each IO.println
+    each : (Any -> Any) -> Nothing
+    each self f =
+        go list = case list of
+            Nil -> Nothing
+            Cons h t ->
+                f h
+                @Tail_Call go t
+        go self
+        Nothing
+
+    ## GROUP Selections
+       Reverses the list, returning a list with the same elements, but in the
+       opposite order.
+
+       > Example
+         Reversing a small list.
+
+             import Standard.Examples
+
+             example_reverse = Examples.list.reverse
+    reverse : List
+    reverse self = self.fold Nil (l -> el -> Cons el l)
+
+    ## GROUP Selections
+       Creates a new list with the first `count` elements at the start of `self`
+       removed.
+
+       Arguments:
+       - count: The number of elements to take drop the start of `self`.
+
+       > Example
+         Removing the first element from a list.
+
+             import Standard.Examples
+
+             example_drop_start = Examples.list.drop_start 1
+    drop_start : Integer -> List
+    drop_start self count = if count <= 0 then self else case self of
+        Nil -> Nil
+        Cons _ b -> b.drop_start count-1
+
+    ## GROUP Selections
+       Creates a new list consisting of the first `count` elements at the start
+       of `self`.
+
+       Arguments:
+       - count: The number of elements to take from the start of `self`.
+
+       > Example
+         Obtaining the first 2 elements of a list.
+
+             import Standard.Examples
+
+             example_take_start = Examples.list.take_start 2
+    take_start : Integer -> List
+    take_start self count = if count <= 0 then Nil else case self of
+        Nil -> Nil
+        Cons a b ->
+            go c l fill = if c <= 0 then fill Nil else case l of
+                Nil -> fill Nil
+                Cons a b ->
+                    res = Meta.atom_with_hole (Cons a _)
+                    fill res.value
+                    @Tail_Call go c-1 b res.fill
+            res = Meta.atom_with_hole (Cons a _)
+            go count-1 b res.fill
+            res.value
+
+    ## GROUP Selections
+       Get all elements from the list except the last.
+
+       > Example
+         Removing the last element of the list to give (Cons 1 Nil).
+
+             import Standard.Examples
+
+             example_init = Examples.list.init
+    init : List ! Index_Out_Of_Bounds
+    init self =
+        case self of
+            Nil -> Error.throw (Index_Out_Of_Bounds.Error 0 0)
+            Cons _ Nil -> Nil
+            Cons a b ->
+                go l fill = case l of
+                    Cons x xs -> case xs of
+                        Nil -> fill Nil
+                        Cons _ _ ->
+                            res = Meta.atom_with_hole (Cons x _)
+                            fill res.value
+                            @Tail_Call go xs res.fill
+
+                res = Meta.atom_with_hole (Cons a _)
+                go b res.fill
+                res.value
+
+    ## GROUP Selections
+       Get the last element of the list.
+
+       > Example
+         Getting the final element of the list.
+
+             import Standard.Examples
+
+             example_last = Examples.list.last
+    last : Any ! Index_Out_Of_Bounds
+    last self = case self.fold Nothing (_ -> r -> r) of
+        Nothing -> Error.throw (Index_Out_Of_Bounds.Error -1 0)
+        a -> a
+
+    ## GROUP Selections
+       Get the first element from the list.
+
+       > Example
+         Getting the first element in the list.
+
+             import Standard.Examples
+
+             example_first = Examples.list.first
+    first : Any ! Index_Out_Of_Bounds
+    first self = case self of
+        Nil -> Error.throw (Index_Out_Of_Bounds.Error 0 0)
+        Cons a _ -> a
+
+    ## GROUP Selections
+       Get the second element from the list.
+
+       > Example
+         Getting the second element in the list.
+
+             import Standard.Examples
+
+             example_second = Examples.list.second
+    second : Any ! Index_Out_Of_Bounds
+    second self = case self of
+        Nil -> Error.throw (Index_Out_Of_Bounds.Error 1 0)
+        Cons _ a -> case a of
+            Nil -> Error.throw (Index_Out_Of_Bounds.Error 1 1)
+            Cons b _ -> b
+
+    ## GROUP Selections
+       Get the first element from the list.
+
+       > Example
+         This returns 1.
+
+             import Standard.Examples
+
+             example_head = Examples.list.x
+    head : Any ! Index_Out_Of_Bounds
+    head self = self.first
+
+    ## GROUP Selections
+       Get all elements from the list except the first.
+
+       > Example
+         This returns (Cons 2 Nil).
+
+             import Standard.Examples
+
+             example_tail = Examples.list.tail
+    tail : List ! Index_Out_Of_Bounds
+    tail self = case self of
+        Nil -> Error.throw (Index_Out_Of_Bounds.Error 1 0)
+        Cons _ b -> b
+
+    ## GROUP Conversions
+       Convert this list to a vector with the same elements.
+    to_vector : Vector
+    to_vector self =
+        builder = self.fold (Vector.new_builder self.length) builder-> elem->
+            builder.append elem
+        builder.to_vector
+
+    ## PRIVATE
+       Generates a human-readable text representation of the list.
+    to_text : Text
+    to_text self =
+        go l t e = case l of
+            Nil -> t + "Nil" + e
+            Cons x xs -> @Tail_Call go xs (t + "(Cons " + x.to_text + " ") (")" + e)
+        go self "" ""
+
+    ## GROUP Selections
+       Returns the first element of the list that satisfies the condition or
+       if no elements of the list satisfy the predicate, returns `if_missing`.
+
+       Arguments:
+       - condition: A `Filter_Condition` or a predicate function to test each
+         element.
+       - start: The index to start searching from. If the index is negative, it
+         is counted from the end of the vector.
+       - if_missing: Value returned if no element satisfies the predicate.
+
+       > Example
+         Finding a first element of the list that is larger than 2.
+
+             import Standard.Examples
+
+             example_first = Examples.list.find (> 2)
+    find : (Filter_Condition | (Any -> Boolean)) -> Integer -> Any -> Any
+    find self condition start=0 ~if_missing=(Error.throw Not_Found) =
+        predicate = unify_condition_or_predicate condition
+        case start.signum of
+            -1 ->
+                node_and_index = find_node_from_end self start
+                node_and_index.first.find predicate 0 if_missing
+            _ ->
+                start_node = find_node_from_start self start
+                loop current = case current of
+                    Nil -> if_missing
+                    Cons x xs -> if predicate x then x else @Tail_Call loop xs
+                loop start_node
+
+    ## GROUP Values
+       Returns the index of the element in the list.
+       Returns Nothing if the element is not found.
+
+       Arguments:
+       - condition: Either the element to search for, a `Filter_Condition` or a
+         predicate function to test each element.
+       - start: The index to start searching from. If the index is negative, it
+         is counted from the end of the list.
+
+       > Example
+         Finding a first element of the vector that is larger than 3.
+
+             [1, 2, 3, 4, 5].find (> 3)
+    index_of : (Any | Filter_Condition | (Any -> Boolean)) -> Integer -> Integer | Nothing
+    index_of self condition start=0 = case start.signum of
+        -1 ->
+            node_and_index = find_node_from_end self start
+            found = node_and_index.first.index_of condition 0
+            if found.is_nothing then Nothing else found+node_and_index.second
+        _ ->
+            start_node = find_node_from_start self start
+            predicate = unify_condition_predicate_or_element condition
+            loop current idx = case current of
+                Nil -> Nothing
+                Cons x xs -> if predicate x then idx else @Tail_Call loop xs idx+1
+            loop start_node start
+
+    ## GROUP Values
+       Returns the last index of the element in the list.
+       Returns Nothing if the element is not found.
+
+       Arguments:
+       - condition: Either the element to search for, a `Filter_Condition` or a
+         predicate function to test each element.
+       - start: The index to start searching backwards from. If the index is
+         negative, it is counted from the end of the list.
+
+       > Example
+         Finding a first element of the vector that is larger than 3.
+
+             [1, 2, 3, 4, 5].find (> 3)
+    last_index_of : (Any | Filter_Condition | (Any -> Boolean)) -> Integer -> Integer | Nothing
+    last_index_of self condition start=-1 = case self of
+        Nil -> if start == -1 || start == 0 then Nothing else Error.throw (Index_Out_Of_Bounds.Error start 0)
+        Cons _ _ ->
+            length = self.length
+            used_start = if start < 0 then length+start else start
+            if used_start < 0 || used_start >= length then Error.throw (Index_Out_Of_Bounds.Error start length) else
+                predicate = unify_condition_predicate_or_element condition
+                loop current idx last_match = if idx>used_start then last_match else case current of
+                    Nil -> last_match
+                    Cons x xs ->
+                        new_match = if predicate x then idx else last_match
+                        @Tail_Call loop xs idx+1 new_match
+                loop self 0 Nothing
+
+## An error representing that the list is empty.
+type Empty_Error
+    ## PRIVATE
+    Error
+
+    ## PRIVATE
+
+       Pretty prints the empty error.
+    to_display_text : Text
+    to_display_text self = "The List is empty."
+
+## PRIVATE
+   Given a positive index and a list, returns the node.
+find_node_from_start list index =
+    loop current idx = case current of
+        Nil -> if idx == 0 then current else Error.throw (Index_Out_Of_Bounds.Error index index-idx+1)
+        Cons _ xs -> if idx == 0 then current else @Tail_Call loop xs (idx - 1)
+    loop list index
+
+## PRIVATE
+   Given a negative index and a list, returns the node that is represented and the index of it.
+find_node_from_end list index =
+    loop current count lagged idx = case current of
+        Nil -> if count == 0 then [lagged, idx] else Error.throw (Index_Out_Of_Bounds.Error index -index-count)
+        Cons _ xs ->
+            new_lagged = if count > 0 then lagged else lagged.xs
+            new_idx = if count > 0 then idx else idx+1
+            @Tail_Call loop xs (0.max count-1) new_lagged new_idx
+    loop list -index list 0

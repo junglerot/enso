@@ -1,0 +1,129 @@
+import project.Data.Text.Text
+import project.Data.Vector.Vector
+import project.Error.Error
+import project.Errors.Encoding_Error.Encoding_Error
+import project.Errors.Illegal_Argument.Illegal_Argument
+import project.Meta
+import project.Metadata.Display
+import project.Metadata.Widget
+import project.Panic.Panic
+from project.Metadata.Choice import Option
+from project.Metadata.Widget import Single_Choice
+
+polyglot java import java.nio.charset.Charset
+polyglot java import java.nio.charset.UnsupportedCharsetException
+polyglot java import org.enso.base.Text_Utils
+
+## Represents a character encoding.
+type Encoding
+    ## PRIVATE
+       Gets the default drop down option for this encoding.
+    default_widget : Widget
+    default_widget =
+        fqn = Meta.get_qualified_type_name Encoding
+        values = [Option "UTF-8" fqn+".utf_8", Option "ASCII" fqn+".ascii", Option "UTF-16LE" fqn+".utf_16_le", Option "UTF-16BE" fqn+".utf_16_be", Option "UTF-32LE" fqn+".utf_32_le", Option "UTF-32BE" fqn+".utf_32_be", Option "Windows-1250" fqn+".windows_1250", Option "Windows-1251" fqn+".windows_1251", Option "Windows-1252" fqn+".windows_1252", Option "Windows-1253" fqn+".windows_1253", Option "Windows-1254" fqn+".windows_1254", Option "Windows-1255" fqn+".windows_1255", Option "Windows-1256" fqn+".windows_1256", Option "Windows-1257" fqn+".windows_1257", Option "Windows-1258" fqn+".windows_1258"]
+        Single_Choice values=values display=Display.When_Modified
+
+    ## PRIVATE
+       ADVANCED
+       Get all available character sets from Java as Encodings.
+       Used to provide auto completion in the UI.
+    all_character_sets : Vector Text
+    all_character_sets =
+        Charset.availableCharsets.keys
+
+    ## PRIVATE
+       ADVANCED
+       Get all available Encodings.
+    all_encodings : Vector Encoding
+    all_encodings =
+        Encoding.all_character_sets.map Encoding.Value
+
+    ## Create an Encoding from a Text.
+    from_name : Text -> Encoding ! Illegal_Argument
+    from_name name =
+        handler = _-> Error.throw (Illegal_Argument.Error ("Unknown Character Set: " + name))
+        Panic.catch UnsupportedCharsetException handler=handler <|
+            charset = Charset.forName name
+            Encoding.Value charset.name
+
+    ## PRIVATE
+       Create a new Encoding object.
+
+       Arguments:
+       - character_set: java.nio.charset name.
+    Value (character_set:Text)
+
+    ## PRIVATE
+       Convert an Encoding to it's corresponding Java Charset
+    to_java_charset : Charset
+    to_java_charset self =
+        Panic.catch UnsupportedCharsetException (Charset.forName self.character_set) _->
+            Error.throw (Illegal_Argument.Error ("Unknown Character Set: " + self.character_set))
+
+    ## Encoding for ASCII.
+    ascii : Encoding
+    ascii = Encoding.Value "US-ASCII"
+
+    ## Encoding for Unicode UTF-8.
+    utf_8 : Encoding
+    utf_8 = Encoding.Value "UTF-8"
+
+    ## Encoding for Unicode UTF-16 Little Endian.
+    utf_16_le : Encoding
+    utf_16_le = Encoding.Value "UTF-16LE"
+
+    ## Encoding for Unicode UTF-16 Big Endian.
+    utf_16_be : Encoding
+    utf_16_be = Encoding.Value "UTF-16BE"
+
+    ## Encoding for Unicode UTF-32 Little Endian.
+    utf_32_le : Encoding
+    utf_32_le = Encoding.Value "UTF-32LE"
+
+    ## Encoding for Unicode UTF-32 Big Endian.
+    utf_32_be : Encoding
+    utf_32_be = Encoding.Value "UTF-32BE"
+
+    ## Encoding for Central European (Windows).
+    windows_1250 : Encoding
+    windows_1250 = Encoding.Value "windows-1250"
+
+    ## Encoding for Cyrillic (Windows).
+    windows_1251 : Encoding
+    windows_1251 = Encoding.Value "windows-1251"
+
+    ## ALIAS iso-8859-1
+       Encoding for Western European (Windows).
+    windows_1252 : Encoding
+    windows_1252 = Encoding.Value "windows-1252"
+
+    ## Encoding for Greek (Windows).
+    windows_1253 : Encoding
+    windows_1253 = Encoding.Value "windows-1253"
+
+    ## ALIAS iso-8859-9
+       Encoding for Turkish (Windows).
+    windows_1254 : Encoding
+    windows_1254 = Encoding.Value "windows-1254"
+
+    ## Encoding for Hebrew (Windows).
+    windows_1255 : Encoding
+    windows_1255 = Encoding.Value "windows-1255"
+
+    ## Encoding for Arabic (Windows).
+    windows_1256 : Encoding
+    windows_1256 = Encoding.Value "windows-1256"
+
+    ## Encoding for Baltic (Windows).
+    windows_1257 : Encoding
+    windows_1257 = Encoding.Value "windows-1257"
+
+    ## Encoding for Vietnamese (Windows).
+    windows_1258 : Encoding
+    windows_1258 = Encoding.Value "windows-1258"
+
+    ## PRIVATE
+       Convert Encoding to a friendly string.
+    to_display_text : Text
+    to_display_text self = self.character_set

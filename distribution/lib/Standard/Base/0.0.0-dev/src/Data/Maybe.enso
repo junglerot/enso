@@ -1,0 +1,69 @@
+import project.Any.Any
+import project.Data.Text.Text
+from project.Data.Boolean import Boolean, False, True
+
+## A type representing computations that may fail.
+type Maybe
+
+    ## No contained value.
+    None
+
+    ## A value.
+
+       Arguments:
+       - value: The contained value in the maybe.
+
+       > Example
+         Construct a some value.
+
+             import Standard.Base.Data.Maybe
+
+             example_some = Maybe.Some "yes!"
+    Some value
+
+    ## GROUP Metadata
+       Applies the provided function to the contained value if it exists,
+       otherwise returning the provided default value.
+
+       Arguments:
+       - default: The value to return if `self` is None. This value is lazy
+         and hence will not execute any provided computation unless it is used.
+       - function: The function to execute on the value inside the `Some`, if it
+         is a just.
+
+       > Example
+         Apply a function over a Some value to get 4.
+
+             import Standard.Base.Data.Maybe
+
+             example_maybe = Maybe.Some 2 . maybe 0 *2
+    maybe : Any -> (Any -> Any) -> Any
+    maybe self ~default function = case self of
+        Maybe.None -> default
+        Maybe.Some val -> function val
+
+    ## GROUP Metadata
+       Check if the maybe value is `Some`.
+
+       > Example
+         Check if `None` is `Some`.
+
+             import Standard.Base.Data.Maybe
+
+             example_is_some = Maybe.Some "yes!" . is_some
+    is_some : Boolean
+    is_some self = case self of
+        Maybe.None -> False
+        Maybe.Some _ -> True
+
+    ## GROUP Metadata
+       Check if the maybe value is `None`.
+    is_none : Boolean
+    is_none self = self.is_some.not
+
+    ## PRIVATE
+       Convert Maybe to a friendly string.
+    to_display_text : Text
+    to_display_text self = case self of
+        Maybe.None -> "None"
+        Maybe.Some val -> "Some(" + val.to_display_text + ")"

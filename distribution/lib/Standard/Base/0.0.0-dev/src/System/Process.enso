@@ -1,0 +1,47 @@
+import project.Data.Text.Text
+import project.Data.Vector.Vector
+import project.System
+import project.System.Process.Exit_Code.Exit_Code
+import project.System.Process.Process_Builder.Process_Builder
+import project.System.Process.Process_Builder.Process_Result
+from project.Data.Boolean import Boolean, False, True
+
+## ALIAS run a command
+   GROUP Input
+
+   Call a command with a list of arguments.
+
+   Arguments:
+   - command: The command to execute.
+   - arguments: The arguments to pass to `command`.
+
+   > Example
+     Call the "echo" command.
+
+         import Standard.Base.System.Platform
+         import Standard.Base.System.Process
+
+         example_run = case Platform.os of
+             Platform.OS.Windows -> Process.run "PowerShell" ["-Command", "exit 42"]
+             _ -> Process.run "bash" ["-c", "exit 42"]
+run : Text -> Vector Text -> Text -> Process_Result
+run command arguments=[] stdin="" =
+    new_builder command arguments stdin . create
+
+## PRIVATE
+   ADVANCED
+   Create a new process builder.
+
+   Arguments:
+   - command: The command to execute on the system.
+   - arguments: The arguments to pass to `command`. These must be text.
+   - stdin: Any content to pass to the standard input for `command`.
+
+   > Example
+     Create a new builder for a command "echo".
+
+         import Standard.Base.System.Process
+
+         example_new_builder = Process.new_builder "echo"
+new_builder : Text -> Vector Text -> Text -> Process_Builder
+new_builder command arguments=[] stdin="" = Process_Builder.Value command arguments stdin

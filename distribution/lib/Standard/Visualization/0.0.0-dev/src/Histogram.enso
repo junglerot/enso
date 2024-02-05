@@ -1,0 +1,71 @@
+from Standard.Base import all
+
+from Standard.Table import Column, Table
+
+import project.Helpers
+
+## PRIVATE
+
+   Get first numeric column of the table.
+Table.first_numeric : Column ! Nothing
+Table.first_numeric self = self.columns.find if_missing=(Error.throw Nothing) _.is_numeric
+
+## PRIVATE
+
+   Get the value column - the column that will be used to create histogram.
+Table.value_column : Column ! Nothing
+Table.value_column self =
+    named_col = self.lookup_ignore_case 'value'
+    named_col.catch_ self.first_numeric
+
+## PRIVATE
+
+   Information that are placed in an update sent to a visualization.
+type Update
+
+    ## PRIVATE
+    Value values label
+
+    ## PRIVATE
+       Generate JSON that can be consumed by the visualization.
+    to_js_object : JS_Object
+    to_js_object self =
+        data = ['data', JS_Object.from_pairs [['values', self.values]]]
+        ret_pairs = case self.label of
+            Nothing -> [data]
+            _ -> [['axis', JS_Object.from_pairs [['x', JS_Object.from_pairs [['label', self.label]]]]], data]
+        JS_Object.from_pairs ret_pairs
+
+## PRIVATE
+from_table : Table -> Update
+from_table table =
+    col = table.value_column
+    label = col.name.catch_ Nothing
+    values = col.to_vector.catch_ []
+    Update.Value values label
+
+## PRIVATE
+from_vector : Vector -> Update
+from_vector vector =
+    Update.Value vector Nothing
+
+## PRIVATE
+from_value : Any -> Update
+from_value value =
+    case value of
+        _ : Table  -> from_table value
+        _ : Vector -> from_vector value
+        _ : Column -> from_table value.to_table
+        _          -> from_vector value.to_vector
+
+## PRIVATE
+
+   Default preprocessor for the histogram visualization.
+
+   Generates JSON text describing the histogram visualization.
+
+   Arguments:
+   - value: the value to be visualized.
+process_to_json_text : Any -> Text
+process_to_json_text value =
+    from_value value . to_json

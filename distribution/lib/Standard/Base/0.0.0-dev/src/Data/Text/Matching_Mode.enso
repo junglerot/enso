@@ -1,0 +1,6 @@
+type Matching_Mode
+    ## Matches the first found instance.
+    First
+
+    ## Matches the last found instance.
+    Last
